@@ -23,15 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 
-# Data Processing
-walkdir = "2.5"
-rayon = "1.10"
-chrono = { version = "0.4", features = ["serde"] }
-
-# Error Handling
-anyhow = "1.0"
-thiserror = "2.0"
-
 # Utilities
 dirs = "5.0"
 regex = "1.11"
+chrono = { version = "0.4.44", features = ["serde"] }
