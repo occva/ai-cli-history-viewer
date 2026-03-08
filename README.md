@@ -2,7 +2,12 @@
 
 基于 Tauri 2 + Rust + Svelte 5 的 AI CLI 会话历史查看器。
 
-## 功能
+## 
+
+![image-20260309012909954](https://i.postimg.cc/RSDTVvc8/20260309012919172.png?dl=1)
+
+
+功能
 
 - 支持多 Provider：`claude`、`codex`、`gemini`、`openclaw`、`opencode`
 - 会话列表统一扫描，按最近活跃时间排序
