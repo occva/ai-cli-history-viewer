@@ -9,7 +9,10 @@
     conversation: `<path fill-rule="evenodd" d="M1.75 2.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H1.75Zm0 5a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5h-6ZM.5 15.5l3-3h10.75a1.75 1.75 0 0 0 1.75-1.75v-9A1.75 1.75 0 0 0 14.25 0H1.75A1.75 1.75 0 0 0 0 1.75v13.75Z"/>`,
     message: `<path fill-rule="evenodd" d="M0 3.75C0 2.784.784 2 1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-8.5Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25H1.75ZM3.5 6.25a.75.75 0 0 1 .75-.75h7a.75.75 0 0 1 0 1.5h-7a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5h-4Z"/>`,
     error: `<path fill-rule="evenodd" d="M8.22 1.754a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368L7.78 1.754ZM10.5 1.5a1.75 1.75 0 0 0-3 0L1.418 12.875A1.75 1.75 0 0 0 2.918 15h10.164a1.75 1.75 0 0 0 1.5-2.125L8.78 1.754ZM9 10.25a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0v2.5Zm-.75 3.25a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/>`,
-    calendar: `<path d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25V3.75C0 2.784.784 2 1.75 2H3V.75A.75.75 0 0 1 3.75 0h1ZM1.5 3.75v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V3.75a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25Z"/><path d="M4 7h2v2H4V7zm4 0h2v2H8V7z"/>`,
+    clock: `<path fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM2.5 8a5.5 5.5 0 1 1 11 0A5.5 5.5 0 0 1 2.5 8Zm6.25-2.75a.75.75 0 0 0-1.5 0V8c0 .2.08.39.22.53l1.75 1.75a.75.75 0 1 0 1.06-1.06L8.75 7.69V5.25Z"/>`,
+    copy: `<path fill-rule="evenodd" d="M5 2.75A1.75 1.75 0 0 1 6.75 1h5.5A1.75 1.75 0 0 1 14 2.75v5.5A1.75 1.75 0 0 1 12.25 10h-5.5A1.75 1.75 0 0 1 5 8.25v-5.5Zm1.75-.25a.25.25 0 0 0-.25.25v5.5c0 .138.112.25.25.25h5.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-5.5ZM2 5.75C2 4.784 2.784 4 3.75 4a.75.75 0 0 1 0 1.5.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25.75.75 0 0 1 1.5 0A1.75 1.75 0 0 1 10.25 14h-6.5A1.75 1.75 0 0 1 2 12.25v-6.5Z"/>`,
+    terminal: `<path fill-rule="evenodd" d="M1.75 2A1.75 1.75 0 0 0 0 3.75v8.5C0 13.216.784 14 1.75 14h12.5A1.75 1.75 0 0 0 16 12.25v-8.5A1.75 1.75 0 0 0 14.25 2H1.75Zm0 1.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25H1.75Zm2.72 2.22a.75.75 0 0 1 1.06 0l1.75 1.75a.75.75 0 0 1 0 1.06L5.53 10.28a.75.75 0 1 1-1.06-1.06L5.69 8 4.47 6.78a.75.75 0 0 1 0-1.06ZM8 9.25a.75.75 0 0 1 .75-.75h2.75a.75.75 0 0 1 0 1.5H8.75A.75.75 0 0 1 8 9.25Z"/>`,
+    folderOpen: `<path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v8.5C0 12.216.784 13 1.75 13h8.518a1.75 1.75 0 0 0 1.626-1.102l1.757-4.393A1.75 1.75 0 0 0 12.026 5H7.5a.25.25 0 0 1-.2-.1l-.9-1.2A1.75 1.75 0 0 0 5 3H1.75a.25.25 0 0 1-.25-.25v0A.25.25 0 0 1 1.75 2.5H5a.25.25 0 0 1 .2.1l.9 1.2A1.75 1.75 0 0 0 7.5 4h4.526a3.25 3.25 0 0 1 3.019 4.458l-1.757 4.394A3.25 3.25 0 0 1 10.268 15H1.75A1.75 1.75 0 0 1 0 13.25v-10.5A1.75 1.75 0 0 1 1.75 1Z"/>`,
     trash: `<path d="M6.5 1a1 1 0 0 0-.894.553L5.382 2H2.75a.75.75 0 0 0 0 1.5h.45l.632 9.49A1.75 1.75 0 0 0 5.577 14.5h4.846a1.75 1.75 0 0 0 1.745-1.51L12.8 3.5h.45a.75.75 0 0 0 0-1.5h-2.632l-.224-.447A1 1 0 0 0 9.5 1h-3Zm.276 1.5h2.448l.25.5h-2.948l.25-.5Zm-1.44 1.999h5.328l-.617 9.255a.25.25 0 0 1-.249.216H5.202a.25.25 0 0 1-.249-.216L4.336 4.5Zm1.414 1.25a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 .75-.75Zm2.5 0a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 .75-.75Z"/>`,
     search: `<path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>`,
     empty_box: `<path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75C0 1.784.784 1 1.75 1ZM1.5 2.75v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>`,
@@ -52,11 +55,25 @@
     claude: 'Claude Sessions',
   };
 
-  function msToDate(ms?: number): string {
-    return ms ? new Date(ms).toLocaleDateString() : 'N/A';
+  function formatTimestamp(ms?: number): string {
+    if (!ms) return 'N/A';
+    return new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date(ms));
   }
   function sessionTitle(s: SessionMeta): string {
     return s.title ?? s.summary ?? s.sessionId.slice(0, 8);
+  }
+  function baseName(value?: string | null): string {
+    if (!value?.trim()) return '';
+    const normalized = value.trim().replace(/[\\/]+$/, '');
+    const parts = normalized.split(/[\\/]/).filter(Boolean);
+    return parts.at(-1) ?? normalized;
   }
   function sessionDir(s: SessionMeta): string {
     if (s.projectDir && s.projectDir.trim()) return s.projectDir;
@@ -82,7 +99,7 @@
         map.set(dir, e);
       });
     return [...map.entries()].map(([name, { count, latest }]) => ({
-      name, conversation_count: count, latest_date: msToDate(latest),
+      name, conversation_count: count, latest_date: formatTimestamp(latest),
     })).sort((a,b) => b.conversation_count - a.conversation_count);
   }
 
@@ -93,8 +110,9 @@
       .map(s => ({
         session_id: s.sessionId, project_path: s.projectDir ?? '',
         source_type: s.providerId, title: sessionTitle(s),
-        timestamp: msToDate(s.lastActiveAt), message_count: sessionMessageCount(s),
-        date: msToDate(s.lastActiveAt),
+        timestamp: formatTimestamp(s.lastActiveAt ?? s.createdAt),
+        message_count: sessionMessageCount(s),
+        date: formatTimestamp(s.lastActiveAt ?? s.createdAt),
       }));
   }
 
@@ -139,6 +157,7 @@
   let toastType = $state<'syncing' | 'success' | 'error'>('syncing');
   let toastMessage = $state('History Updated');
   let deleteTarget = $state<SessionMeta | null>(null);
+  let isProjectMenuOpen = $state(false);
 
   // Timers
   let autoRefreshInterval: any;
@@ -149,6 +168,7 @@
     await loadData();
     autoRefreshInterval = setInterval(silentRefresh, 120000);
     window.addEventListener('keydown', handleGlobalKeydown);
+    window.addEventListener('click', handleWindowClick);
   });
 
   onDestroy(() => {
@@ -156,6 +176,7 @@
     if (searchTimer) clearTimeout(searchTimer);
     countJobToken++;
     window.removeEventListener('keydown', handleGlobalKeydown);
+    window.removeEventListener('click', handleWindowClick);
   });
   async function warmupMessageCounts(projectName: string) {
     const token = ++countJobToken;
@@ -304,7 +325,83 @@
 
   interface MessagePair {
       user?: string;
+      userTs?: string;
       assistant?: string;
+      assistantTs?: string;
+  }
+  function showFeedback(message: string, type: 'success' | 'error' | 'syncing' = 'success') {
+      toastType = type;
+      toastMessage = message;
+      showToast = true;
+      setTimeout(() => {
+          showToast = false;
+      }, 2500);
+  }
+
+  async function copyText(text: string, message: string) {
+      try {
+          await navigator.clipboard.writeText(text);
+          showFeedback(message, 'success');
+      } catch (e) {
+          console.error('Copy failed:', e);
+          showFeedback('Copy failed', 'error');
+      }
+  }
+
+  async function openResumeTerminal(kind: 'cmd' | 'powershell') {
+      const target = currentConversation
+          ? getSessionById(currentConversation.session_id, currentConversation.source_type)
+          : null;
+      if (!target?.resumeCommand) return;
+
+      try {
+          if (kind === 'powershell') {
+              try {
+                  await navigator.clipboard.writeText(target.resumeCommand);
+              } catch (copyError) {
+                  console.error('Copy failed before launching PowerShell:', copyError);
+              }
+          }
+          await api.launchTerminal(target.resumeCommand, target.projectDir, kind);
+          showFeedback(
+              kind === 'cmd'
+                  ? 'Opened in CMD'
+                  : 'Opened in PowerShell, command copied',
+              'success',
+          );
+      } catch (e) {
+          console.error('Launch terminal failed:', e);
+          showFeedback('Failed to launch terminal', 'error');
+      }
+  }
+
+  function toggleProjectMenu(event: MouseEvent) {
+      event.stopPropagation();
+      isProjectMenuOpen = !isProjectMenuOpen;
+  }
+
+  async function handleProjectPathCopy(event?: MouseEvent) {
+      event?.stopPropagation();
+      if (!selectedSession?.projectDir) return;
+      isProjectMenuOpen = false;
+      await copyText(selectedSession.projectDir, 'Project path copied');
+  }
+
+  async function openProjectInExplorer(event?: MouseEvent) {
+      event?.stopPropagation();
+      const target = currentConversation
+          ? getSessionById(currentConversation.session_id, currentConversation.source_type)
+          : null;
+      if (!target?.projectDir) return;
+      isProjectMenuOpen = false;
+
+      try {
+          await api.openInFileExplorer(target.projectDir);
+          showFeedback('Opened in File Explorer', 'success');
+      } catch (e) {
+          console.error('Open in File Explorer failed:', e);
+          showFeedback('Failed to open File Explorer', 'error');
+      }
   }
   function mergeMessageContent(current: string, next: string) {
       if (!current) return next;
@@ -325,31 +422,38 @@
 
           if (role === 'user' || role === 'human') {
               let userContent = msg.content || '';
+              let userTs = msg.timestamp || '';
               while (i + 1 < messages.length &&
                      (messages[i+1].role.toLowerCase() === 'user' || messages[i+1].role.toLowerCase() === 'human')) {
                   const nextContent = messages[i+1].content || '';
                   userContent = mergeMessageContent(userContent, nextContent);
+                  userTs = messages[i+1].timestamp || userTs;
                   i++;
               }
               let assistantContent = '';
+              let assistantTs = '';
               if (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                   assistantContent = messages[i+1].content || '';
+                  assistantTs = messages[i+1].timestamp || '';
                   i++;
                   while (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                       const nextContent = messages[i+1].content || '';
                       assistantContent = mergeMessageContent(assistantContent, nextContent);
+                      assistantTs = messages[i+1].timestamp || assistantTs;
                       i++;
                   }
               }
-              pairs.push({ user: userContent, assistant: assistantContent });
+              pairs.push({ user: userContent, userTs, assistant: assistantContent, assistantTs });
           } else if (role === 'assistant') {
               let assistantContent = msg.content || '';
+              let assistantTs = msg.timestamp || '';
               while (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                   const nextContent = messages[i+1].content || '';
                   assistantContent = mergeMessageContent(assistantContent, nextContent);
+                  assistantTs = messages[i+1].timestamp || assistantTs;
                   i++;
               }
-              pairs.push({ assistant: assistantContent });
+              pairs.push({ assistant: assistantContent, assistantTs });
           }
           i++;
       }
@@ -371,12 +475,13 @@
         project_path: target.projectDir ?? '',
         source_type: target.providerId,
         title: sessionTitle(target),
-        timestamp: msToDate(target.lastActiveAt),
+        timestamp: formatTimestamp(target.lastActiveAt ?? target.createdAt),
         messages: rawMsgs.map(m => ({
-          role: m.role, content: m.content, timestamp: msToDate(m.ts),
+          role: m.role, content: m.content, timestamp: formatTimestamp(m.ts),
         })),
       };
       currentConversation = transformConversation(convLike as any);
+      isProjectMenuOpen = false;
       currentView = 'detail';
   }
 
@@ -397,6 +502,7 @@
       currentSource = source;
       localStorage.setItem('source', source);
       isSourceDropdownOpen = false;
+      isProjectMenuOpen = false;
       currentProject = null;
       currentConversation = null;
       refreshFromSessions();
@@ -416,7 +522,7 @@
           source_type: s.providerId,
           session_id: s.sessionId,
           title: sessionTitle(s),
-          date: msToDate(s.lastActiveAt),
+          date: formatTimestamp(s.lastActiveAt ?? s.createdAt),
         }))
         .slice(0, 50) as any;
   }
@@ -446,6 +552,12 @@
       }
   }
 
+  function handleWindowClick() {
+      if (isProjectMenuOpen) {
+          isProjectMenuOpen = false;
+      }
+  }
+
   function handleGlobalKeydown(e: KeyboardEvent) {
       // Disable global hotkeys while user is typing.
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
@@ -459,6 +571,7 @@
       }
       if (e.key === 'Escape') {
           if (isSearchModalOpen) closeSearch();
+          else if (isProjectMenuOpen) isProjectMenuOpen = false;
           else if (currentView === 'detail') currentView = 'list';
       }
       
@@ -493,6 +606,11 @@
       'openclaw': 'OpenClaw',
       'opencode': 'OpenCode'
   } as Record<string, string>)[currentSource] || 'History');
+  const selectedSession = $derived(
+      currentConversation
+          ? getSessionById(currentConversation.session_id, currentConversation.source_type)
+          : null,
+  );
 
 </script>
 
@@ -569,7 +687,7 @@
                        <div class="conversation-title">{conv.title}</div>
                        <div class="conversation-meta">
                            <span class="meta-item">{@html getIcon('conversation', 12)} {conv.message_count} messages</span>
-                           <span class="meta-item">{@html getIcon('calendar', 12)} {conv.date}</span>
+                           <span class="meta-item">{@html getIcon('clock', 12)} {conv.date}</span>
                        </div>
                    </button>
                {/each}
@@ -594,29 +712,105 @@
                          {:else}
                            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 0zm0 13a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 13zM2.343 2.343a.5.5 0 01.707 0l1.414 1.414a.5.5 0 01-.707.707L2.343 3.05a.5.5 0 010-.707zm11.314 8.486a.5.5 0 010 .707l-1.414 1.414a.5.5 0 01-.707-.707l1.414-1.414a.5.5 0 01.707 0zM12.914 2.343a.5.5 0 010 .707l-1.414 1.414a.5.5 0 01-.707-.707l1.414-1.414a.5.5 0 01.707 0zM3.05 12.207a.5.5 0 01.707 0l1.414 1.414a.5.5 0 01-.707.707L3.05 12.914a.5.5 0 010-.707zM13 8a.5.5 0 01.5.5h2a.5.5 0 010-1h-2A.5.5 0 0113 8zM0 8a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2A.5.5 0 010 8z"></path></svg>
                          {/if}
-                     </button>
-                     <button class="btn-danger" onclick={openDeleteDialog} type="button" disabled={isDeleting}>
-                         {@html getIcon('trash', 14)} {isDeleting ? 'Deleting...' : 'Delete'}
-                     </button>
-                 </div>
-             {/if}
+                    </button>
+                    <button class="btn-danger" onclick={openDeleteDialog} type="button" disabled={isDeleting}>
+                        <span class="icon-inline" aria-hidden="true">
+                            {@html getIcon('trash', 15)}
+                        </span>
+                        <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
+                    </button>
+                </div>
+            {/if}
         </div>
         <div class="conversation-detail" id="conversationDetail">
             {#if currentConversation}
                 <div class="conversation-header">
                     <h3>{currentConversation.title}</h3>
-                     <div class="conversation-info">
+                    <div class="conversation-info">
                         <span>{@html getIcon('message', 12)} ID: {currentConversation.session_id}</span>
-                        <span>{@html getIcon('calendar', 12)} {currentConversation.timestamp || 'N/A'}</span>
+                        <span>{@html getIcon('clock', 12)} {currentConversation.timestamp || 'N/A'}</span>
+                        {#if selectedSession?.projectDir}
+                            <div class="menu-anchor project-menu-anchor">
+                                <button
+                                    class="conversation-info-btn"
+                                    type="button"
+                                    aria-expanded={isProjectMenuOpen}
+                                    onclick={toggleProjectMenu}
+                                >
+                                    <span class="icon-inline folder-info-icon" aria-hidden="true">
+                                        {@html getIcon('folderOpen', 13)}
+                                    </span>
+                                    <span>{baseName(selectedSession.projectDir)}</span>
+                                </button>
+                                <div class="hover-menu" class:show-menu={isProjectMenuOpen}>
+                                    <button type="button" onclick={handleProjectPathCopy}>
+                                        复制路径
+                                    </button>
+                                    <button type="button" onclick={openProjectInExplorer}>
+                                        在文件管理器打开
+                                    </button>
+                                </div>
+                            </div>
+                        {/if}
                     </div>
+                    {#if selectedSession?.resumeCommand}
+                        <div class="detail-card">
+                            <div class="detail-card-header">
+                                <span class="detail-card-label">Resume Command</span>
+                                <div class="detail-card-actions">
+                                    <button
+                                        class="inline-icon-btn"
+                                        onclick={() => copyText(selectedSession.resumeCommand!, 'Resume command copied')}
+                                        type="button"
+                                        title="Copy resume command"
+                                    >
+                                        {@html getIcon('copy', 14)}
+                                    </button>
+                                    <div class="menu-anchor">
+                                        <button
+                                            class="inline-icon-btn"
+                                            type="button"
+                                            title="Open in terminal"
+                                        >
+                                            {@html getIcon('terminal', 14)}
+                                        </button>
+                                        <div class="hover-menu">
+                                            <button type="button" onclick={() => openResumeTerminal('cmd')}>
+                                                CMD 打开
+                                            </button>
+                                            <button type="button" onclick={() => openResumeTerminal('powershell')}>
+                                                PowerShell 打开
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="detail-card-value detail-card-code">{selectedSession.resumeCommand}</div>
+                        </div>
+                    {/if}
                 </div>
                 <div class="messages-container">
                     {#each currentConversation.pairs as pair, i}
                         {#if pair.user}
                             <div class="message user-message">
                                 <div class="message-header">
-                                    <span class="message-role">User</span>
-                                    <span class="message-number">#{i + 1}</span>
+                                    <div class="message-header-main">
+                                        <span class="message-role">User</span>
+                                        <span class="message-number">#{i + 1}</span>
+                                    </div>
+                                    <div class="message-header-side">
+                                        {#if pair.userTs}
+                                            <span class="message-ts">{pair.userTs}</span>
+                                        {/if}
+                                        <button
+                                            class="inline-icon-btn message-copy-btn"
+                                            onclick={() => copyText(pair.user!, 'Message copied')}
+                                            type="button"
+                                            title="Copy message"
+                                        >
+                                            {@html getIcon('copy', 14)}
+                                        </button>
+                                    </div>
                                 </div>
                                 <Markdown content={pair.user} />
                             </div>
@@ -624,8 +818,23 @@
                         {#if pair.assistant}
                             <div class="message assistant-message">
                                 <div class="message-header">
-                                    <span class="message-role">Assistant</span>
-                                    {#if pair.user}<span class="message-number">#{i+1}</span>{/if}
+                                    <div class="message-header-main">
+                                        <span class="message-role">Assistant</span>
+                                        {#if pair.user}<span class="message-number">#{i+1}</span>{/if}
+                                    </div>
+                                    <div class="message-header-side">
+                                        {#if pair.assistantTs}
+                                            <span class="message-ts">{pair.assistantTs}</span>
+                                        {/if}
+                                        <button
+                                            class="inline-icon-btn message-copy-btn"
+                                            onclick={() => copyText(pair.assistant!, 'Message copied')}
+                                            type="button"
+                                            title="Copy message"
+                                        >
+                                            {@html getIcon('copy', 14)}
+                                        </button>
+                                    </div>
                                 </div>
                                 <Markdown content={pair.assistant} />
                             </div>
@@ -674,7 +883,7 @@
                       <div class="conversation-title">{result.title}</div>
                        <div class="conversation-meta">
                             <span class="meta-item">{@html getIcon('project', 12)} {result.project}</span>
-                            <span class="meta-item">{@html getIcon('calendar', 12)} {result.date}</span>
+                            <span class="meta-item">{@html getIcon('clock', 12)} {result.date}</span>
                        </div>
                   </button>
               {/each}

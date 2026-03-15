@@ -59,6 +59,12 @@ export async function deleteSession(
 export async function launchTerminal(
     command: string,
     cwd?: string | null,
+    terminalKind?: 'cmd' | 'powershell' | null,
 ): Promise<boolean> {
-    return invoke('launch_session_terminal', { command, cwd });
+    return invoke('launch_session_terminal', { command, cwd, terminalKind });
+}
+
+/** 在 Windows 文件管理器中打开目录或定位文件 */
+export async function openInFileExplorer(path: string): Promise<boolean> {
+    return invoke('open_in_file_explorer', { path });
 }
