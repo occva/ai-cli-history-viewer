@@ -47,6 +47,7 @@
 
   // ---- 适配函数 ----
   const GEMINI_GROUP = 'Gemini Sessions';
+  const isWebMode = api.isWebMode();
   const PROVIDER_GROUPS: Record<string, string> = {
     gemini: GEMINI_GROUP,
     codex: 'Codex Sessions',
@@ -163,7 +164,21 @@
   let autoRefreshInterval: any;
   let searchTimer: any;
 
+  function applyWebTokenFromQuery() {
+    if (!isWebMode) return;
+
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token')?.trim();
+    if (!token) return;
+
+    localStorage.setItem(api.WEB_TOKEN_STORAGE_KEY, token);
+    url.searchParams.delete('token');
+    const normalized = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, '', normalized || '/');
+  }
+
   onMount(async () => {
+    applyWebTokenFromQuery();
     setTheme(theme);
     await loadData();
     autoRefreshInterval = setInterval(silentRefresh, 120000);
@@ -216,6 +231,8 @@
         refreshFromSessions();
     } catch (e) {
         console.error("Failed to load data:", e);
+        const message = e instanceof Error ? e.message : 'Failed to load data';
+        showFeedback(message, 'error');
     } finally {
         isLoading = false;
     }
@@ -354,6 +371,11 @@
           : null;
       if (!target?.resumeCommand) return;
 
+      if (isWebMode) {
+          await copyText(target.resumeCommand, 'Resume command copied');
+          return;
+      }
+
       try {
           if (kind === 'powershell') {
               try {
@@ -389,6 +411,10 @@
 
   async function openProjectInExplorer(event?: MouseEvent) {
       event?.stopPropagation();
+      if (isWebMode) {
+          showFeedback('Not supported in web mode', 'error');
+          return;
+      }
       const target = currentConversation
           ? getSessionById(currentConversation.session_id, currentConversation.source_type)
           : null;
@@ -746,9 +772,11 @@
                                     <button type="button" onclick={handleProjectPathCopy}>
                                         复制路径
                                     </button>
-                                    <button type="button" onclick={openProjectInExplorer}>
-                                        在文件管理器打开
-                                    </button>
+                                    {#if !isWebMode}
+                                        <button type="button" onclick={openProjectInExplorer}>
+                                            在文件管理器打开
+                                        </button>
+                                    {/if}
                                 </div>
                             </div>
                         {/if}
@@ -766,23 +794,25 @@
                                     >
                                         {@html getIcon('copy', 14)}
                                     </button>
-                                    <div class="menu-anchor">
-                                        <button
-                                            class="inline-icon-btn"
-                                            type="button"
-                                            title="Open in terminal"
-                                        >
-                                            {@html getIcon('terminal', 14)}
-                                        </button>
-                                        <div class="hover-menu">
-                                            <button type="button" onclick={() => openResumeTerminal('cmd')}>
-                                                CMD 打开
+                                    {#if !isWebMode}
+                                        <div class="menu-anchor">
+                                            <button
+                                                class="inline-icon-btn"
+                                                type="button"
+                                                title="Open in terminal"
+                                            >
+                                                {@html getIcon('terminal', 14)}
                                             </button>
-                                            <button type="button" onclick={() => openResumeTerminal('powershell')}>
-                                                PowerShell 打开
-                                            </button>
+                                            <div class="hover-menu">
+                                                <button type="button" onclick={() => openResumeTerminal('cmd')}>
+                                                    CMD 打开
+                                                </button>
+                                                <button type="button" onclick={() => openResumeTerminal('powershell')}>
+                                                    PowerShell 打开
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    {/if}
                                 </div>
                             </div>
                             <div class="detail-card-value detail-card-code">{selectedSession.resumeCommand}</div>
