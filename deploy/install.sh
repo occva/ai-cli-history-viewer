@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="${AICHV_REPO_URL:-https://github.com/occva/ai-cli-history-viewer.git}"
-BRANCH="${AICHV_REPO_BRANCH:-main}"
+BRANCH="${AICHV_REPO_BRANCH:-master}"
 
 if [[ "${EUID}" -eq 0 ]]; then
   INSTALL_DIR="${AICHV_INSTALL_DIR:-/opt/ai-cli-history-viewer}"

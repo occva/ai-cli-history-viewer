@@ -64,7 +64,7 @@ cargo tauri build
 ### Installation Steps
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/occva/ai-cli-history-viewer/main/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/occva/ai-cli-history-viewer/master/deploy/install.sh | sudo env AICHV_REPO_BRANCH=master bash
 ```
 
 安装完成后，脚本会打印访问地址（包含 token）。
@@ -127,4 +127,3 @@ src-tauri/target/release/aichv-web
 ## License
 
 MIT
-
