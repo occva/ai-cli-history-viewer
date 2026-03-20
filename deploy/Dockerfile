@@ -1,6 +1,7 @@
 ARG NODE_IMAGE=node:20-alpine
 ARG RUST_IMAGE=rust:1.77-alpine3.19
 ARG RUNTIME_IMAGE=alpine:3.19
+ARG CARGO_BUILD_JOBS=1
 
 FROM ${NODE_IMAGE} AS frontend-builder
 WORKDIR /app
@@ -18,9 +19,12 @@ FROM ${RUST_IMAGE} AS backend-builder
 WORKDIR /app
 
 RUN apk add --no-cache build-base musl-dev
+ENV CARGO_NET_RETRY=8 \
+    CARGO_HTTP_TIMEOUT=600 \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 COPY src-tauri ./src-tauri
-RUN cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin aichv-web
+RUN cargo build --release --jobs ${CARGO_BUILD_JOBS} --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin aichv-web
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
