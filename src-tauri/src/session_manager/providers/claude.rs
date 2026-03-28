@@ -4,15 +4,18 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::paths::get_claude_config_dir;
+use crate::paths::get_claude_projects_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
 
-use super::utils::{extract_text, parse_timestamp_to_ms, read_head_tail_lines, path_basename, truncate_summary};
+use super::utils::{
+    extract_text, log_scan_error, parse_timestamp_to_ms, path_basename, read_head_tail_lines,
+    truncate_summary,
+};
 
 const PROVIDER_ID: &str = "claude";
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
-    let root = get_claude_config_dir().join("projects");
+    let root = get_claude_projects_dir();
     let mut files = Vec::new();
     collect_jsonl_files(&root, &mut files);
 
@@ -214,7 +217,10 @@ fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
 
     let entries = match std::fs::read_dir(root) {
         Ok(entries) => entries,
-        Err(_) => return,
+        Err(err) => {
+            log_scan_error(PROVIDER_ID, root, &err);
+            return;
+        }
     };
 
     for entry in entries.flatten() {

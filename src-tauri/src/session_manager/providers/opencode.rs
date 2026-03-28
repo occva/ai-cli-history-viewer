@@ -2,25 +2,15 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+use crate::paths::get_opencode_storage_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
 
-use super::utils::{parse_timestamp_to_ms, path_basename, truncate_summary};
+use super::utils::{log_scan_error, parse_timestamp_to_ms, path_basename, truncate_summary};
 
 const PROVIDER_ID: &str = "opencode";
 
-/// Return the OpenCode data directory.
-///
-/// Respects `XDG_DATA_HOME` on all platforms; falls back to
-/// `~/.local/share/opencode/storage/`.
 pub(crate) fn get_opencode_data_dir() -> PathBuf {
-    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        if !xdg.is_empty() {
-            return PathBuf::from(xdg).join("opencode").join("storage");
-        }
-    }
-    dirs::home_dir()
-        .map(|h| h.join(".local/share/opencode/storage"))
-        .unwrap_or_else(|| PathBuf::from(".local/share/opencode/storage"))
+    get_opencode_storage_dir()
 }
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
@@ -327,7 +317,10 @@ fn collect_json_files(root: &Path, files: &mut Vec<PathBuf>) {
 
     let entries = match std::fs::read_dir(root) {
         Ok(entries) => entries,
-        Err(_) => return,
+        Err(err) => {
+            log_scan_error(PROVIDER_ID, root, &err);
+            return;
+        }
     };
 
     for entry in entries.flatten() {

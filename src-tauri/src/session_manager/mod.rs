@@ -117,11 +117,11 @@ fn delete_session_with_root(
 
 fn provider_root(provider_id: &str) -> Result<PathBuf, String> {
     let root = match provider_id {
-        "codex" => crate::paths::get_codex_config_dir().join("sessions"),
-        "claude" => crate::paths::get_claude_config_dir().join("projects"),
+        "codex" => crate::paths::get_codex_sessions_dir(),
+        "claude" => crate::paths::get_claude_projects_dir(),
         "opencode" => opencode::get_opencode_data_dir(),
-        "openclaw" => crate::paths::get_openclaw_dir().join("agents"),
-        "gemini" => crate::paths::get_gemini_dir().join("tmp"),
+        "openclaw" => crate::paths::get_openclaw_agents_dir(),
+        "gemini" => crate::paths::get_gemini_tmp_dir(),
         _ => return Err(format!("Unsupported provider: {provider_id}")),
     };
 

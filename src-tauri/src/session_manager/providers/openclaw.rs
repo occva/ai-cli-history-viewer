@@ -4,15 +4,18 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::paths::get_openclaw_dir;
+use crate::paths::get_openclaw_agents_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
 
-use super::utils::{extract_text, parse_timestamp_to_ms, read_head_tail_lines, path_basename, truncate_summary};
+use super::utils::{
+    extract_text, log_scan_error, parse_timestamp_to_ms, path_basename, read_head_tail_lines,
+    truncate_summary,
+};
 
 const PROVIDER_ID: &str = "openclaw";
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
-    let agents_dir = get_openclaw_dir().join("agents");
+    let agents_dir = get_openclaw_agents_dir();
     if !agents_dir.exists() {
         return Vec::new();
     }
@@ -22,7 +25,10 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
     // Traverse each agent directory
     let agent_entries = match std::fs::read_dir(&agents_dir) {
         Ok(entries) => entries,
-        Err(_) => return sessions,
+        Err(err) => {
+            log_scan_error(PROVIDER_ID, &agents_dir, &err);
+            return sessions;
+        }
     };
 
     for agent_entry in agent_entries.flatten() {
@@ -38,7 +44,10 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
 
         let session_entries = match std::fs::read_dir(&sessions_dir) {
             Ok(entries) => entries,
-            Err(_) => continue,
+            Err(err) => {
+                log_scan_error(PROVIDER_ID, &sessions_dir, &err);
+                continue;
+            }
         };
 
         for entry in session_entries.flatten() {

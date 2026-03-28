@@ -119,3 +119,11 @@ pub fn path_basename(value: &str) -> Option<String> {
         .filter(|segment| !segment.is_empty())?;
     Some(last.to_string())
 }
+
+pub fn log_scan_error(provider: &str, path: &Path, err: &io::Error) {
+    eprintln!(
+        "[WARN] provider={provider} failed to read {}: {}",
+        path.display(),
+        err
+    );
+}

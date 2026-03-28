@@ -2,13 +2,13 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::paths::get_gemini_tmp_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
-use super::utils::{parse_timestamp_to_ms, truncate_summary};
+use super::utils::{log_scan_error, parse_timestamp_to_ms, truncate_summary};
 const PROVIDER_ID: &str = "gemini";
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
-    let gemini_dir = crate::paths::get_gemini_dir();
-    let tmp_dir = gemini_dir.join("tmp");
+    let tmp_dir = get_gemini_tmp_dir();
     if !tmp_dir.exists() {
         return Vec::new();
     }
@@ -18,7 +18,10 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
     // Iterate over project hash directories: tmp/<project_hash>/chats/session-*.json
     let project_dirs = match std::fs::read_dir(&tmp_dir) {
         Ok(entries) => entries,
-        Err(_) => return Vec::new(),
+        Err(err) => {
+            log_scan_error(PROVIDER_ID, &tmp_dir, &err);
+            return Vec::new();
+        }
     };
 
     for entry in project_dirs.flatten() {
@@ -29,7 +32,10 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
 
         let chat_files = match std::fs::read_dir(&chats_dir) {
             Ok(entries) => entries,
-            Err(_) => continue,
+            Err(err) => {
+                log_scan_error(PROVIDER_ID, &chats_dir, &err);
+                continue;
+            }
         };
 
         for file_entry in chat_files.flatten() {
