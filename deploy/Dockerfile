@@ -41,6 +41,7 @@ RUN chmod +x /app/docker-entrypoint.sh \
 
 ENV AICHV_HOST=0.0.0.0
 ENV AICHV_PORT=17860
+ENV AICHV_HOME=/app/data
 ENV AICHV_CLAUDE_DIR=/host-data/claude/projects
 ENV AICHV_CODEX_DIR=/host-data/codex/sessions
 ENV AICHV_GEMINI_DIR=/host-data/gemini/tmp

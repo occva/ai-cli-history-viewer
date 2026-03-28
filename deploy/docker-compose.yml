@@ -8,6 +8,7 @@ services:
     environment:
       - AICHV_HOST=0.0.0.0
       - AICHV_PORT=17860
+      - AICHV_HOME=/app/data
       - AICHV_TOKEN=${AICHV_TOKEN:?AICHV_TOKEN is required}
       - AICHV_CLAUDE_DIR=/host-data/claude/projects
       - AICHV_CODEX_DIR=/host-data/codex/sessions
