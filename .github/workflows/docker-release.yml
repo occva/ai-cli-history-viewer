@@ -33,8 +33,7 @@ jobs:
         id: prep
         shell: bash
         run: |
-          owner="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          image="ghcr.io/${owner}/ai-cli-history-viewer"
+          image="ghcr.io/occva/ai-cli-history-viewer"
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
             tags="${image}:${version},${image}:latest"

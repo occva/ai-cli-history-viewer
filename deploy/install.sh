@@ -176,13 +176,6 @@ prepare_env() {
     set_env_value "AICHV_TOKEN" "$token"
   fi
 
-  local deploy_mode
-  deploy_mode="$(get_env_value AICHV_DEPLOY_MODE)"
-  if [[ -z "$deploy_mode" ]]; then
-    deploy_mode="${AICHV_DEPLOY_MODE:-image}"
-    set_env_value "AICHV_DEPLOY_MODE" "$deploy_mode"
-  fi
-
   local image
   image="$(get_env_value AICHV_IMAGE)"
   if [[ -z "$image" ]]; then
@@ -273,38 +266,9 @@ compose_up_image() {
   docker compose -f docker-compose.yml up -d
 }
 
-compose_up_source() {
-  log_info "Building image locally from source..."
-  docker compose -f docker-compose.build.yml up -d --build
-}
-
 start_service() {
   cd "$INSTALL_DIR/deploy"
-
-  local mode
-  mode="$(get_env_value AICHV_DEPLOY_MODE)"
-  mode="${mode:-image}"
-
-  case "$mode" in
-    image)
-      compose_up_image
-      ;;
-    source)
-      compose_up_source
-      ;;
-    auto)
-      if compose_up_image; then
-        log_info "Prebuilt image deployment succeeded."
-      else
-        log_warn "Prebuilt image deployment failed, falling back to source build."
-        compose_up_source
-      fi
-      ;;
-    *)
-      log_error "Unsupported AICHV_DEPLOY_MODE: $mode"
-      exit 1
-      ;;
-  esac
+  compose_up_image
 
   local token port access_host
   token="$(get_env_value AICHV_TOKEN)"
