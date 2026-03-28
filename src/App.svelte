@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import * as api from './lib/api';
   import Markdown from './lib/components/Markdown.svelte';
 
@@ -16,6 +17,7 @@
     trash: `<path d="M6.5 1a1 1 0 0 0-.894.553L5.382 2H2.75a.75.75 0 0 0 0 1.5h.45l.632 9.49A1.75 1.75 0 0 0 5.577 14.5h4.846a1.75 1.75 0 0 0 1.745-1.51L12.8 3.5h.45a.75.75 0 0 0 0-1.5h-2.632l-.224-.447A1 1 0 0 0 9.5 1h-3Zm.276 1.5h2.448l.25.5h-2.948l.25-.5Zm-1.44 1.999h5.328l-.617 9.255a.25.25 0 0 1-.249.216H5.202a.25.25 0 0 1-.249-.216L4.336 4.5Zm1.414 1.25a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 .75-.75Zm2.5 0a.75.75 0 0 1 .75.75v4a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 .75-.75Z"/>`,
     search: `<path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>`,
     empty_box: `<path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75C0 1.784.784 1 1.75 1ZM1.5 2.75v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>`,
+    database: `<path d="M8 1.25c-3.59 0-5.75 1.16-5.75 2.5v8.5c0 1.34 2.16 2.5 5.75 2.5s5.75-1.16 5.75-2.5v-8.5c0-1.34-2.16-2.5-5.75-2.5Zm0 1.5c2.91 0 4.25.84 4.25 1s-1.34 1-4.25 1-4.25-.84-4.25-1 1.34-1 4.25-1Zm-4.25 3.1c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1s-4.25-.84-4.25-1v-1.4Zm0 3.5c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1s-4.25-.84-4.25-1v-1.4Zm4.25 3.9c-2.91 0-4.25-.84-4.25-1v-1.4c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1Z"/>`,
     back: `<svg viewBox="0 0 1024 1024" width="14" height="14" fill="currentColor"><path d="M604.8 407.68H158.72L375.68 198.4c17.92-17.28 17.92-46.08 0-63.36a48.384 48.384 0 0 0-65.92 0L13.44 421.12c-17.92 17.28-17.92 46.08 0 63.36l296.32 286.08c17.92 17.28 47.36 17.28 65.92 0 17.92-17.28 17.92-46.08 0-63.36L158.72 497.92h446.08c179.84 0 325.76 140.8 325.76 314.88v44.8c0 24.96 21.12 44.8 46.72 44.8 25.6 0 46.72-20.48 46.72-44.8v-44.8c0-224-187.52-405.12-419.2-405.12z"></path></svg>`,
     dropdown_arrow: `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M12.78 6.22a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L3.22 7.28a.75.75 0 0 1 1.06-1.06L8 9.94l3.72-3.72a.75.75 0 0 1 1.06 0Z"></path></svg>`
   };
@@ -27,7 +29,8 @@
   // ---- 本地类型（与旧 api.ts 同构，模板字段名不变）----
   interface SessionMeta {
     providerId: string; sessionId: string; title?: string; summary?: string;
-    projectDir?: string | null; lastActiveAt?: number; sourcePath?: string; resumeCommand?: string;
+    projectDir?: string | null; cwd?: string | null; model?: string | null;
+    createdAt?: number; lastActiveAt?: number; sourcePath?: string; resumeCommand?: string;
   }
   interface ProjectInfo { name: string; conversation_count: number; latest_date: string; }
   interface ConvSummary {
@@ -35,15 +38,54 @@
     title: string; timestamp: string; message_count: number; date: string;
   }
   interface Stats { projects_count: number; conversations_count: number; messages_count: number; }
-  interface SearchResultLocal { project: string; source_type: string; session_id: string; title: string; date: string; }
+  interface SearchResultLocal {
+    project: string;
+    source_type: string;
+    session_id: string;
+    title: string;
+    date: string;
+    snippet?: string;
+    match_role?: string;
+    match_seq?: number;
+    search_query?: string;
+    sort_ts?: number;
+  }
   interface ConversationLike {
       session_id: string;
       project_path: string;
       source_type: string;
       title: string;
       timestamp: string;
-      messages: Array<{ role: string; content: string; timestamp: string }>;
+      messages: Array<{ role: string; content: string; timestamp: string; seq: number }>;
   }
+  interface ConversationMessage {
+      role: string;
+      content: string;
+      ts?: number;
+      seq: number;
+  }
+  interface SearchIndexSyncEvent {
+      phase: string;
+      message?: string;
+      count?: number;
+      total?: number;
+      indexedSessions?: number;
+      indexedMessages?: number;
+      addedSessions?: number;
+      updatedSessions?: number;
+      removedSessions?: number;
+      skippedSessions?: number;
+      errorSessions?: number;
+      changedSources?: api.IndexedSourceRef[];
+      status?: api.SearchIndexStatus;
+  }
+  type SearchTimeRange = 'all' | '7d' | '30d' | '90d';
+  type SearchSort = 'relevance' | 'recent';
+  type IndexModalTab = 'overview' | 'sessions';
+  type IndexLibraryItem = api.IndexedSession;
+  const INDEX_LIBRARY_PAGE_SIZE = 50;
+  const AUTO_SYNC_INTERVAL_WEB_MS = 120000;
+  const AUTO_SYNC_INTERVAL_DESKTOP_MS = 300000;
 
   // ---- 适配函数 ----
   const GEMINI_GROUP = 'Gemini Sessions';
@@ -74,7 +116,7 @@
     if (!value?.trim()) return '';
     const normalized = value.trim().replace(/[\\/]+$/, '');
     const parts = normalized.split(/[\\/]/).filter(Boolean);
-    return parts.at(-1) ?? normalized;
+    return parts[parts.length - 1] ?? normalized;
   }
   function sessionDir(s: SessionMeta): string {
     if (s.projectDir && s.projectDir.trim()) return s.projectDir;
@@ -85,6 +127,21 @@
   }
   function sessionMessageCount(s: SessionMeta): number {
     return messageCountCache[sessionCacheKey(s)] ?? 0;
+  }
+  function toSessionMeta(indexed: api.IndexedSession): SessionMeta {
+    return {
+      providerId: indexed.providerId,
+      sessionId: indexed.sessionId,
+      title: indexed.title,
+      summary: indexed.summary,
+      projectDir: indexed.project,
+      cwd: indexed.cwd ?? indexed.project,
+      model: indexed.model,
+      createdAt: indexed.createdAt,
+      lastActiveAt: indexed.lastActiveAt,
+      sourcePath: indexed.sourcePath,
+      resumeCommand: indexed.resumeCommand,
+    };
   }
 
   // SessionMeta[] → ProjectInfo[]（按 source 过滤 + 按 projectDir 分组）
@@ -129,6 +186,11 @@
         .filter(s => s.providerId === currentSource)
         .reduce((sum, s) => sum + sessionMessageCount(s), 0),
     };
+    if (currentProject && !projs.some(project => project.name === currentProject)) {
+      currentProject = null;
+      currentConversation = null;
+      conversations = [];
+    }
     if (!currentProject && projs.length > 0) selectProject(projs[0].name);
   }
 
@@ -147,13 +209,44 @@
   // UI State
   let currentView = $state('list');
   let isSearchModalOpen = $state(false);
+  let isIndexModalOpen = $state(false);
+  let indexModalTab = $state<IndexModalTab>('overview');
   let searchQuery = $state('');
   let searchResults = $state<SearchResultLocal[]>([]);
+  let searchIndexReady = $state(false);
+  let searchIndexBootstrapping = $state(false);
+  let searchIndexStatus = $state<api.SearchIndexStatus | null>(null);
+  let indexLibraryItems = $state<IndexLibraryItem[]>([]);
+  let indexProjectOptions = $state<api.IndexedProjectOption[]>([]);
+  let indexLibraryTotalCount = $state(0);
+  let indexLibraryPage = $state(1);
+  let indexLibraryProviderFilter = $state('all');
+  let indexLibraryProjectFilter = $state('all');
+  let isIndexLibraryLoading = $state(false);
+  let searchRequestToken = 0;
+  let searchTimeRange = $state<SearchTimeRange>('all');
+  let searchSort = $state<SearchSort>('relevance');
+  let searchProjectOnly = $state(false);
+  let searchTotalCount = $state(0);
+  let activeSearchMatch = $state<{
+      session_id: string;
+      source_type: string;
+      role: string;
+      seq: number;
+      query: string;
+  } | null>(null);
   let isSourceDropdownOpen = $state(false);
   let theme = $state(localStorage.getItem('theme') || 'dark');
   let isLoading = $state(false);
   let isRefreshing = $state(false);
   let isDeleting = $state(false);
+  let isIndexActionRunning = $state(false);
+  let searchIndexSyncInfo = $state<{
+      phase: string;
+      message?: string;
+      count: number;
+      total: number;
+  } | null>(null);
   let showToast = $state(false);
   let toastType = $state<'syncing' | 'success' | 'error'>('syncing');
   let toastMessage = $state('History Updated');
@@ -163,6 +256,11 @@
   // Timers
   let autoRefreshInterval: any;
   let searchTimer: any;
+  let watcherReloadTimer: any;
+  let searchIndexEventUnsubscribers: Array<() => void> = [];
+  let watcherReloadRunning = false;
+  let watcherReloadQueued = false;
+  let pendingWatcherSources = new Map<string, api.IndexedSourceRef>();
 
   function applyWebTokenFromQuery() {
     if (!isWebMode) return;
@@ -177,11 +275,238 @@
     window.history.replaceState({}, '', normalized || '/');
   }
 
+  async function subscribeSearchIndexEvents() {
+    if (isWebMode) return;
+
+    const unlisten = await listen<SearchIndexSyncEvent>('search-index-sync', async (event) => {
+      const payload = event.payload;
+      if (payload.phase === 'refreshing') {
+        searchIndexSyncInfo = {
+          phase: 'refreshing',
+          message: payload.message,
+          count: payload.count ?? 0,
+          total: payload.total ?? 0,
+        };
+        return;
+      }
+
+      if (payload.phase === 'error') {
+        searchIndexSyncInfo = null;
+        toastType = 'error';
+        toastMessage = payload.message ?? 'Search index refresh failed';
+        showToast = true;
+        setTimeout(() => {
+          showToast = false;
+        }, 3000);
+        return;
+      }
+
+      if (payload.phase === 'scanning' || payload.phase === 'syncing') {
+        searchIndexSyncInfo = {
+          phase: payload.phase,
+          message: payload.message,
+          count: payload.count ?? 0,
+          total: payload.total ?? 0,
+        };
+        return;
+      }
+
+      if (payload.phase !== 'updated') return;
+
+      searchIndexSyncInfo = {
+        phase: 'done',
+        message: 'Index is current',
+        count: payload.count ?? 0,
+        total: payload.total ?? 0,
+      };
+      if (payload.status) {
+        searchIndexStatus = payload.status;
+        searchIndexReady = payload.status.ready && payload.status.sessionsCount > 0;
+      } else {
+        searchIndexReady = (payload.indexedSessions ?? 0) > 0;
+      }
+      const changedCount =
+        (payload.addedSessions ?? 0) +
+        (payload.updatedSessions ?? 0) +
+        (payload.removedSessions ?? 0);
+
+      if (changedCount > 0 || (payload.errorSessions ?? 0) > 0) {
+        scheduleWatcherReload(payload.changedSources ?? []);
+      }
+    });
+
+    searchIndexEventUnsubscribers = [unlisten];
+  }
+
+  async function refreshSearchIndexStatus() {
+    try {
+      searchIndexStatus = await api.getSearchIndexStatus();
+      searchIndexReady = searchIndexStatus.ready && searchIndexStatus.sessionsCount > 0;
+    } catch (e) {
+      console.error('Failed to refresh search index status:', e);
+    }
+  }
+
+  function getSearchSinceTs(range: SearchTimeRange): number | null {
+    if (range === 'all') return null;
+
+    const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+    return Date.now() - days * 24 * 60 * 60 * 1000;
+  }
+
+  function matchesSearchFilters(session: SessionMeta, query: string, source = currentSource): boolean {
+    if (session.providerId !== source) return false;
+    if (searchProjectOnly && currentProject && sessionDir(session) !== currentProject) return false;
+
+    const sinceTs = getSearchSinceTs(searchTimeRange);
+    const activeTs = session.lastActiveAt ?? session.createdAt ?? 0;
+    if (sinceTs !== null && activeTs < sinceTs) return false;
+
+    const needle = query.toLowerCase();
+    return [session.sessionId, session.title, session.summary, session.projectDir]
+      .some(field => field?.toLowerCase().includes(needle));
+  }
+
+  function watcherSourceKey(source: api.IndexedSourceRef): string {
+    return `${source.providerId}:${source.sourcePath}`;
+  }
+
+  function mergeIndexedSessions(
+    baseSessions: SessionMeta[],
+    changedSources: api.IndexedSourceRef[],
+    replacements: api.IndexedSession[],
+  ): SessionMeta[] {
+    const changedKeys = new Set(changedSources.map(watcherSourceKey));
+    const replacementSessions = replacements.map(toSessionMeta);
+    const nextCounts = { ...messageCountCache };
+
+    for (const source of changedSources) {
+      delete nextCounts[watcherSourceKey(source)];
+    }
+    for (const item of replacements) {
+      nextCounts[`${item.providerId}:${item.sourcePath}`] = item.messageCount;
+    }
+    messageCountCache = nextCounts;
+
+    return [...baseSessions.filter(session => {
+      const sourcePath = session.sourcePath?.trim();
+      if (!sourcePath) return true;
+      return !changedKeys.has(`${session.providerId}:${sourcePath}`);
+    }), ...replacementSessions].sort((a, b) =>
+      (b.lastActiveAt ?? b.createdAt ?? 0) - (a.lastActiveAt ?? a.createdAt ?? 0),
+    );
+  }
+
+  async function refreshChangedSessions(changedSources: api.IndexedSourceRef[]): Promise<boolean> {
+    const uniqueSources = Array.from(
+      new Map(
+        changedSources
+          .filter(source => source.providerId?.trim() && source.sourcePath?.trim())
+          .map(source => [watcherSourceKey(source), source]),
+      ).values(),
+    );
+    if (uniqueSources.length === 0) return false;
+
+    const grouped = new Map<string, string[]>();
+    for (const source of uniqueSources) {
+      const paths = grouped.get(source.providerId) ?? [];
+      paths.push(source.sourcePath);
+      grouped.set(source.providerId, paths);
+    }
+
+    const replacements: api.IndexedSession[] = [];
+    for (const [providerId, sourcePaths] of grouped) {
+      const items = await api.listIndexedSessionsBySourcePaths(providerId, sourcePaths);
+      replacements.push(...items);
+    }
+
+    const currentSession = currentConversation
+      ? getSessionById(currentConversation.session_id, currentConversation.source_type)
+      : null;
+    const currentSessionKey = currentSession?.sourcePath
+      ? `${currentSession.providerId}:${currentSession.sourcePath}`
+      : null;
+    const changedKeys = new Set(uniqueSources.map(watcherSourceKey));
+    const replacementKeys = new Set(replacements.map(item => `${item.providerId}:${item.sourcePath}`));
+
+    const nextSessions = mergeIndexedSessions(allSessions, uniqueSources, replacements);
+    applyLoadedSessions(nextSessions);
+
+    if (currentSessionKey && changedKeys.has(currentSessionKey)) {
+      if (replacementKeys.has(currentSessionKey) && currentConversation) {
+        await selectConversation(currentConversation.session_id, currentConversation.source_type);
+      } else {
+        currentConversation = null;
+        currentView = 'list';
+      }
+    }
+
+    return true;
+  }
+
+  async function runSearchIndexAction(kind: 'refresh' | 'rebuild') {
+    if (isIndexActionRunning) return;
+
+    isIndexActionRunning = true;
+    searchIndexSyncInfo = {
+      phase: kind === 'refresh' ? 'syncing' : 'scanning',
+      message: kind === 'refresh' ? 'Refreshing search index' : 'Rebuilding search index',
+      count: 0,
+      total: 0,
+    };
+    toastType = 'syncing';
+    toastMessage = kind === 'refresh' ? 'Refreshing index...' : 'Rebuilding index...';
+    showToast = true;
+
+    try {
+      if (kind === 'refresh') {
+        const result = await api.refreshSearchIndex();
+        searchIndexReady = result.indexedSessions > 0;
+      } else {
+        const result = await api.rebuildSearchIndex();
+        searchIndexReady = result.indexedSessions > 0;
+      }
+
+        await refreshSearchIndexStatus();
+        const sessions = await loadSessionInventory(searchIndexReady);
+        applyLoadedSessions(sessions);
+        if (isIndexModalOpen && indexModalTab === 'sessions') {
+          await refreshIndexLibrary(false, true);
+        }
+        if (currentProject) void warmupMessageCounts(currentProject);
+
+      toastType = 'success';
+      toastMessage = kind === 'refresh' ? 'Index refreshed' : 'Index rebuilt';
+      searchIndexSyncInfo = {
+        phase: 'done',
+        message: kind === 'refresh' ? 'Index refreshed' : 'Index rebuilt',
+        count: searchIndexStatus?.sessionsCount ?? 0,
+        total: searchIndexStatus?.sessionsCount ?? 0,
+      };
+    } catch (e) {
+      console.error(`Failed to ${kind} search index:`, e);
+      searchIndexSyncInfo = null;
+      toastType = 'error';
+      toastMessage = kind === 'refresh' ? 'Index refresh failed' : 'Index rebuild failed';
+    } finally {
+      showToast = true;
+      setTimeout(() => {
+        showToast = false;
+      }, 2500);
+      isIndexActionRunning = false;
+    }
+  }
+
   onMount(async () => {
     applyWebTokenFromQuery();
     setTheme(theme);
     await loadData();
-    autoRefreshInterval = setInterval(silentRefresh, 120000);
+    void bootstrapSearchIndex();
+    await subscribeSearchIndexEvents();
+    autoRefreshInterval = setInterval(
+      silentRefresh,
+      isWebMode ? AUTO_SYNC_INTERVAL_WEB_MS : AUTO_SYNC_INTERVAL_DESKTOP_MS,
+    );
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('click', handleWindowClick);
   });
@@ -189,10 +514,166 @@
   onDestroy(() => {
     if (autoRefreshInterval) clearInterval(autoRefreshInterval);
     if (searchTimer) clearTimeout(searchTimer);
+    if (watcherReloadTimer) clearTimeout(watcherReloadTimer);
     countJobToken++;
+    for (const unlisten of searchIndexEventUnsubscribers) {
+      unlisten();
+    }
+    searchIndexEventUnsubscribers = [];
     window.removeEventListener('keydown', handleGlobalKeydown);
     window.removeEventListener('click', handleWindowClick);
   });
+
+  function scheduleWatcherReload(changedSources: api.IndexedSourceRef[] = []) {
+    for (const source of changedSources) {
+      if (source.providerId?.trim() && source.sourcePath?.trim()) {
+        pendingWatcherSources.set(watcherSourceKey(source), source);
+      }
+    }
+    if (watcherReloadTimer) clearTimeout(watcherReloadTimer);
+    watcherReloadTimer = setTimeout(() => {
+      void flushWatcherReload();
+    }, 1800);
+  }
+
+  async function flushWatcherReload() {
+    if (watcherReloadRunning) {
+      watcherReloadQueued = true;
+      return;
+    }
+
+    watcherReloadRunning = true;
+    try {
+      const pendingSources = Array.from(pendingWatcherSources.values());
+      pendingWatcherSources.clear();
+
+      let appliedIncremental = false;
+      if (pendingSources.length > 0 && pendingSources.length <= 200) {
+        try {
+          appliedIncremental = await refreshChangedSessions(pendingSources);
+        } catch (e) {
+          console.error('Incremental indexed session refresh failed, falling back to full reload:', e);
+        }
+      }
+
+      if (!appliedIncremental) {
+        if (!searchIndexStatus) {
+          await refreshSearchIndexStatus();
+        }
+        const sessions = await loadSessionInventory(searchIndexReady);
+        applyLoadedSessions(sessions);
+      }
+
+        if (isIndexModalOpen && indexModalTab === 'sessions') {
+          await refreshIndexLibrary(false, true);
+        }
+        if (currentProject) void warmupMessageCounts(currentProject);
+    } catch (e) {
+      console.error('Failed to reload sessions after watcher refresh:', e);
+    } finally {
+      watcherReloadRunning = false;
+      if (watcherReloadQueued) {
+        watcherReloadQueued = false;
+        scheduleWatcherReload();
+      }
+    }
+  }
+  async function loadIndexedSessions(): Promise<SessionMeta[]> {
+    const indexed = await api.listIndexedSessions(null, 5000);
+    const nextCounts = { ...messageCountCache };
+    const sessions = indexed.map(item => {
+      const session = toSessionMeta(item);
+      nextCounts[sessionCacheKey(session)] = item.messageCount;
+      return session;
+    });
+    messageCountCache = nextCounts;
+    return sessions;
+  }
+
+  function currentIndexProviderFilter(): string | null {
+    return indexLibraryProviderFilter === 'all' ? null : indexLibraryProviderFilter;
+  }
+
+  function currentIndexProjectFilter(): string | null {
+    return indexLibraryProjectFilter === 'all' ? null : indexLibraryProjectFilter;
+  }
+
+  async function refreshIndexProjects() {
+    try {
+      indexProjectOptions = await api.listIndexedProjects(currentIndexProviderFilter());
+      if (
+        indexLibraryProjectFilter !== 'all' &&
+        !indexProjectOptions.some(project => project.project === indexLibraryProjectFilter)
+      ) {
+        indexLibraryProjectFilter = 'all';
+      }
+    } catch (e) {
+      console.error('Failed to load indexed projects:', e);
+      indexProjectOptions = [];
+      indexLibraryProjectFilter = 'all';
+    }
+  }
+
+  async function refreshIndexLibrary(resetPage = false, reloadProjects = false) {
+    if (reloadProjects) {
+      await refreshIndexProjects();
+    }
+
+    isIndexLibraryLoading = true;
+    try {
+      let nextPage = resetPage ? 1 : indexLibraryPage;
+
+      while (true) {
+        const offset = Math.max(0, (nextPage - 1) * INDEX_LIBRARY_PAGE_SIZE);
+        const result = await api.listIndexedSessionsPage(
+          currentIndexProviderFilter(),
+          currentIndexProjectFilter(),
+          INDEX_LIBRARY_PAGE_SIZE,
+          offset,
+        );
+        const pageCount = Math.max(1, Math.ceil(result.totalCount / INDEX_LIBRARY_PAGE_SIZE));
+
+        if (result.totalCount > 0 && nextPage > pageCount) {
+          nextPage = pageCount;
+          continue;
+        }
+
+        indexLibraryPage = nextPage;
+        indexLibraryTotalCount = result.totalCount;
+        indexLibraryItems = result.items;
+        break;
+      }
+    } catch (e) {
+      console.error('Failed to load indexed sessions:', e);
+      indexLibraryTotalCount = 0;
+      indexLibraryItems = [];
+    } finally {
+      isIndexLibraryLoading = false;
+    }
+  }
+
+  async function loadSessionInventory(preferIndexed = searchIndexReady): Promise<SessionMeta[]> {
+    if (preferIndexed) {
+      try {
+        return await loadIndexedSessions();
+      } catch (e) {
+        console.error('Indexed session list failed, falling back to source scan:', e);
+        searchIndexReady = false;
+      }
+    }
+
+    const sessions = await api.listSessions();
+    return sessions;
+  }
+
+  function applyLoadedSessions(sessions: SessionMeta[]) {
+    allSessions = sessions;
+    refreshFromSessions();
+    if (currentProject) {
+      conversations = buildConversations(allSessions, currentSource, currentProject);
+    }
+  }
+
   async function warmupMessageCounts(projectName: string) {
     const token = ++countJobToken;
     const targets = allSessions
@@ -208,7 +689,7 @@
       const batch = subset.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(batch.map(async (s) => {
         try {
-          const list = await api.getSessionMessages(s.providerId, s.sourcePath!);
+          const list = await loadConversationMessages(s);
           return { key: sessionCacheKey(s), count: list.length };
         } catch {
           return { key: sessionCacheKey(s), count: 0 };
@@ -227,8 +708,9 @@
   async function loadData() {
     isLoading = true;
     try {
-        allSessions = await api.listSessions();
-        refreshFromSessions();
+        await refreshSearchIndexStatus();
+        const sessions = await loadSessionInventory(searchIndexReady);
+        applyLoadedSessions(sessions);
     } catch (e) {
         console.error("Failed to load data:", e);
         const message = e instanceof Error ? e.message : 'Failed to load data';
@@ -245,19 +727,21 @@
       showToast = true;
       
       try {
-          allSessions = await api.listSessions();
-          refreshFromSessions();
-          if (currentProject) {
-              conversations = buildConversations(allSessions, currentSource, currentProject);
-              void warmupMessageCounts(currentProject);
+          if (searchIndexReady) {
+              try {
+                  const result = await api.refreshSearchIndex();
+                  searchIndexReady = result.indexedSessions > 0;
+              } catch (indexError) {
+                  console.error('Search index refresh failed:', indexError);
+                  searchIndexReady = false;
+              }
           }
-          
-          toastType = 'success';
-          toastMessage = 'History Updated';
-          setTimeout(() => {
-              showToast = false;
-              isRefreshing = false;
-          }, 3000);
+          await refreshSearchIndexStatus();
+          const sessions = await loadSessionInventory(searchIndexReady);
+          applyLoadedSessions(sessions);
+          if (currentProject) void warmupMessageCounts(currentProject);
+          showToast = false;
+          isRefreshing = false;
       } catch(e) { 
           console.error("Silent refresh failed:", e); 
           showToast = false;
@@ -298,22 +782,16 @@
           currentConversation = null;
           currentView = 'list';
 
-          allSessions = await api.listSessions();
+          const sessions = await loadSessionInventory(searchIndexReady);
+          await refreshSearchIndexStatus();
+          applyLoadedSessions(sessions);
 
-          const projectStillExists = allSessions.some(
+          const projectStillExists = sessions.some(
               s => s.providerId === currentSource && sessionDir(s) === deletedProject,
           );
           currentProject = projectStillExists ? deletedProject : null;
-          conversations = currentProject
-              ? buildConversations(allSessions, currentSource, currentProject)
-              : [];
-
-          refreshFromSessions();
-
-          if (currentProject) {
-              conversations = buildConversations(allSessions, currentSource, currentProject);
-              void warmupMessageCounts(currentProject);
-          }
+          conversations = currentProject ? buildConversations(sessions, currentSource, currentProject) : [];
+          if (currentProject) void warmupMessageCounts(currentProject);
 
           toastType = 'success';
           toastMessage = 'Session deleted';
@@ -343,8 +821,12 @@
   interface MessagePair {
       user?: string;
       userTs?: string;
+      userSeqStart?: number;
+      userSeqEnd?: number;
       assistant?: string;
       assistantTs?: string;
+      assistantSeqStart?: number;
+      assistantSeqEnd?: number;
   }
   function showFeedback(message: string, type: 'success' | 'error' | 'syncing' = 'success') {
       toastType = type;
@@ -449,49 +931,125 @@
           if (role === 'user' || role === 'human') {
               let userContent = msg.content || '';
               let userTs = msg.timestamp || '';
+              let userSeqStart = msg.seq;
+              let userSeqEnd = msg.seq;
               while (i + 1 < messages.length &&
                      (messages[i+1].role.toLowerCase() === 'user' || messages[i+1].role.toLowerCase() === 'human')) {
                   const nextContent = messages[i+1].content || '';
                   userContent = mergeMessageContent(userContent, nextContent);
                   userTs = messages[i+1].timestamp || userTs;
+                  userSeqEnd = messages[i+1].seq;
                   i++;
               }
               let assistantContent = '';
               let assistantTs = '';
+              let assistantSeqStart: number | undefined;
+              let assistantSeqEnd: number | undefined;
               if (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                   assistantContent = messages[i+1].content || '';
                   assistantTs = messages[i+1].timestamp || '';
+                  assistantSeqStart = messages[i+1].seq;
+                  assistantSeqEnd = messages[i+1].seq;
                   i++;
                   while (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                       const nextContent = messages[i+1].content || '';
                       assistantContent = mergeMessageContent(assistantContent, nextContent);
                       assistantTs = messages[i+1].timestamp || assistantTs;
+                      assistantSeqEnd = messages[i+1].seq;
                       i++;
                   }
               }
-              pairs.push({ user: userContent, userTs, assistant: assistantContent, assistantTs });
+              pairs.push({
+                  user: userContent,
+                  userTs,
+                  userSeqStart,
+                  userSeqEnd,
+                  assistant: assistantContent,
+                  assistantTs,
+                  assistantSeqStart,
+                  assistantSeqEnd,
+              });
           } else if (role === 'assistant') {
               let assistantContent = msg.content || '';
               let assistantTs = msg.timestamp || '';
+              let assistantSeqStart = msg.seq;
+              let assistantSeqEnd = msg.seq;
               while (i + 1 < messages.length && messages[i+1].role.toLowerCase() === 'assistant') {
                   const nextContent = messages[i+1].content || '';
                   assistantContent = mergeMessageContent(assistantContent, nextContent);
                   assistantTs = messages[i+1].timestamp || assistantTs;
+                  assistantSeqEnd = messages[i+1].seq;
                   i++;
               }
-              pairs.push({ assistant: assistantContent, assistantTs });
+              pairs.push({ assistant: assistantContent, assistantTs, assistantSeqStart, assistantSeqEnd });
           }
           i++;
       }
       return { ...conv, pairs };
   }
-  async function selectConversation(sessionId: string, sourceType?: string) {
+  function isPairSearchMatch(pair: MessagePair, role: 'user' | 'assistant'): boolean {
+      if (!activeSearchMatch) return false;
+      if (activeSearchMatch.role !== role) return false;
+      const start = role === 'user' ? pair.userSeqStart : pair.assistantSeqStart;
+      const end = role === 'user' ? pair.userSeqEnd : pair.assistantSeqEnd;
+      if (start === undefined || end === undefined) return false;
+      return activeSearchMatch.seq >= start && activeSearchMatch.seq <= end;
+  }
+
+  function scrollActiveSearchMatchIntoView() {
+      setTimeout(() => {
+          const el = document.querySelector('.message.search-hit');
+          if (el instanceof HTMLElement) {
+              el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+      }, 80);
+  }
+
+  async function loadIndexedConversationMessages(target: SessionMeta): Promise<ConversationMessage[]> {
+      if (!target.sourcePath) return [];
+      const indexed = await api.getIndexedSessionMessages(target.providerId, target.sourcePath);
+      return indexed.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          ts: msg.ts,
+          seq: msg.seq,
+      }));
+  }
+
+  async function loadConversationMessages(target: SessionMeta): Promise<ConversationMessage[]> {
+      if (!target.sourcePath) return [];
+
+      if (searchIndexReady) {
+          try {
+              return await loadIndexedConversationMessages(target);
+          } catch (e) {
+              console.error('Indexed message read failed, retrying indexed session refresh:', e);
+              try {
+                  await refreshChangedSessions([{
+                      providerId: target.providerId,
+                      sourcePath: target.sourcePath,
+                  }]);
+                  return await loadIndexedConversationMessages(target);
+              } catch (retryError) {
+                  console.error('Indexed message retry failed, falling back to source file:', retryError);
+              }
+          }
+      }
+
+      const raw = await api.getSessionMessages(target.providerId, target.sourcePath);
+      return raw.map((msg, index) => ({
+          role: msg.role,
+          content: msg.content,
+          ts: msg.ts,
+          seq: index,
+      }));
+  }
+
+  async function selectConversation(sessionId: string, sourceType?: string, searchMatch?: SearchResultLocal | null) {
       if (!currentProject) return;
       const target = allSessions.find(s => s.sessionId === sessionId && (!sourceType || s.providerId === sourceType));
       if (!target) return;
-      const rawMsgs = target.sourcePath
-        ? await api.getSessionMessages(target.providerId, target.sourcePath)
-        : [];
+      const rawMsgs = await loadConversationMessages(target);
       messageCountCache = {
         ...messageCountCache,
         [sessionCacheKey(target)]: rawMsgs.length,
@@ -503,12 +1061,27 @@
         title: sessionTitle(target),
         timestamp: formatTimestamp(target.lastActiveAt ?? target.createdAt),
         messages: rawMsgs.map(m => ({
-          role: m.role, content: m.content, timestamp: formatTimestamp(m.ts),
+          role: m.role, content: m.content, timestamp: formatTimestamp(m.ts), seq: m.seq,
         })),
       };
       currentConversation = transformConversation(convLike as any);
+      const matchRole = searchMatch?.match_role?.toLowerCase();
+      const canHighlight = (matchRole === 'assistant' || matchRole === 'user' || matchRole === 'human')
+          && searchMatch?.match_seq !== undefined;
+      activeSearchMatch = canHighlight
+          ? {
+              session_id: target.sessionId,
+              source_type: target.providerId,
+              role: matchRole === 'assistant' ? 'assistant' : 'user',
+              seq: searchMatch!.match_seq!,
+              query: searchMatch.search_query ?? searchQuery,
+          }
+          : null;
       isProjectMenuOpen = false;
       currentView = 'detail';
+      if (canHighlight) {
+          scrollActiveSearchMatchIntoView();
+      }
   }
 
   function setTheme(newTheme: string) {
@@ -533,27 +1106,109 @@
       currentConversation = null;
       refreshFromSessions();
   }
-  async function handleSearchInput() {
-      if (!searchQuery) {
-          searchResults = [];
-          return;
-      }
-      const needle = searchQuery.toLowerCase();
-      searchResults = allSessions
-        .filter(s => s.providerId === currentSource
-          && [s.sessionId, s.title, s.summary, s.projectDir]
-               .some(f => f?.toLowerCase().includes(needle)))
+  function buildMetadataSearchResults(query: string, source = currentSource): SearchResultLocal[] {
+      const results = allSessions
+        .filter(s => matchesSearchFilters(s, query, source))
         .map(s => ({
           project: sessionDir(s),
           source_type: s.providerId,
           session_id: s.sessionId,
           title: sessionTitle(s),
           date: formatTimestamp(s.lastActiveAt ?? s.createdAt),
+          sort_ts: s.lastActiveAt ?? s.createdAt ?? 0,
         }))
-        .slice(0, 50) as any;
+        .sort((a, b) => searchSort === 'recent'
+          ? (b.sort_ts ?? 0) - (a.sort_ts ?? 0)
+          : 0);
+
+      searchTotalCount = results.length;
+      return results.slice(0, 50) as any;
+  }
+
+  async function bootstrapSearchIndex() {
+      if (searchIndexBootstrapping) return;
+      searchIndexBootstrapping = true;
+      try {
+          const status = await api.getSearchIndexStatus();
+          searchIndexReady = status.ready && status.sessionsCount > 0;
+          if (allSessions.length > 0) {
+              if (searchIndexReady) {
+                  const result = await api.refreshSearchIndex();
+                  searchIndexReady = result.indexedSessions > 0;
+              } else {
+                  const result = await api.rebuildSearchIndex();
+                  searchIndexReady = result.indexedSessions > 0;
+              }
+              if (searchIndexReady) {
+                  await refreshSearchIndexStatus();
+                  const sessions = await loadSessionInventory(true);
+                  applyLoadedSessions(sessions);
+              }
+          }
+      } catch (e) {
+          console.error('Search index bootstrap failed:', e);
+      } finally {
+          searchIndexBootstrapping = false;
+      }
+  }
+
+  async function performSearch(query: string, source: string, token: number) {
+      try {
+          const result = await api.searchContent(
+              query,
+              source,
+              getSearchSinceTs(searchTimeRange),
+              searchProjectOnly ? currentProject : null,
+              50,
+              searchSort,
+          );
+          if (token !== searchRequestToken) return;
+          searchTotalCount = result.totalCount;
+          if (result.hits.length > 0) {
+              searchResults = result.hits.map(hit => ({
+                  project: hit.project,
+                  source_type: hit.providerId,
+                  session_id: hit.sessionId,
+                  title: hit.sessionTitle,
+                  date: formatTimestamp(hit.messageTimestamp ?? hit.lastActiveAt),
+                  snippet: hit.snippet,
+                  match_role: hit.messageRole === 'assistant' ? 'assistant' : 'user',
+                  match_seq: hit.seq,
+                  search_query: query,
+                  sort_ts: hit.messageTimestamp ?? hit.lastActiveAt ?? 0,
+              }));
+              searchIndexReady = true;
+              return;
+          }
+          searchResults = [];
+          return;
+      } catch (e) {
+          console.error('Indexed search failed, falling back to metadata filter:', e);
+      }
+
+      if (token !== searchRequestToken) return;
+      searchResults = buildMetadataSearchResults(query, source);
+  }
+
+  async function handleSearchInput() {
+      const query = searchQuery.trim();
+      if (!query) {
+          searchRequestToken++;
+          if (searchTimer) clearTimeout(searchTimer);
+          searchResults = [];
+          searchTotalCount = 0;
+          return;
+      }
+      if (searchTimer) clearTimeout(searchTimer);
+      const token = ++searchRequestToken;
+      const source = currentSource;
+      searchTimer = setTimeout(() => {
+          void performSearch(query, source, token);
+      }, 180);
   }
 
   function openSearch() {
+      isIndexModalOpen = false;
       isSearchModalOpen = true;
       setTimeout(() => document.getElementById('searchInput')?.focus(), 50);
   }
@@ -562,19 +1217,93 @@
       isSearchModalOpen = false;
       searchQuery = '';
       searchResults = [];
+      searchTimeRange = 'all';
+      searchSort = 'relevance';
+      searchProjectOnly = false;
+      searchTotalCount = 0;
   }
 
-  function handleSearchResultClick(result: any) {
+  async function openIndexModal() {
+      closeSearch();
+      indexModalTab = 'overview';
+      isIndexModalOpen = true;
+      await refreshSearchIndexStatus();
+  }
+
+  function closeIndexModal() {
+      isIndexModalOpen = false;
+  }
+
+  async function setIndexModalTab(tab: IndexModalTab) {
+      indexModalTab = tab;
+      if (tab === 'sessions') {
+          await refreshIndexLibrary(false, true);
+      }
+  }
+
+  async function setIndexLibraryProviderFilter(providerId: string) {
+      indexLibraryProviderFilter = providerId;
+      indexLibraryProjectFilter = 'all';
+      indexLibraryPage = 1;
+      await refreshIndexLibrary(true, true);
+  }
+
+  async function setIndexLibraryProjectFilter(projectPath: string) {
+      indexLibraryProjectFilter = projectPath;
+      await refreshIndexLibrary(true, false);
+  }
+
+  async function changeIndexLibraryPage(nextPage: number) {
+      const boundedPage = Math.max(1, nextPage);
+      if (boundedPage === indexLibraryPage) return;
+      indexLibraryPage = boundedPage;
+      await refreshIndexLibrary(false, false);
+  }
+
+  function setSearchTimeRange(range: SearchTimeRange) {
+      searchTimeRange = range;
+      if (searchQuery.trim()) void handleSearchInput();
+  }
+
+  function setSearchSort(sort: SearchSort) {
+      searchSort = sort;
+      if (searchQuery.trim()) void handleSearchInput();
+  }
+
+  function toggleSearchProjectOnly() {
+      searchProjectOnly = !searchProjectOnly;
+      if (searchQuery.trim()) void handleSearchInput();
+  }
+
+  function handleSearchResultClick(result: SearchResultLocal) {
       closeSearch();
       if (currentProject !== result.project) {
           currentProject = result.project;
       }
-      selectConversation(result.session_id, result.source_type);
+      selectConversation(result.session_id, result.source_type, result);
+  }
+
+  function handleIndexSessionClick(item: IndexLibraryItem) {
+      const session = toSessionMeta(item);
+      const targetProject = sessionDir(session);
+      currentSource = item.providerId;
+      localStorage.setItem('source', item.providerId);
+      refreshFromSessions();
+      currentProject = targetProject;
+      conversations = buildConversations(allSessions, item.providerId, targetProject);
+      closeIndexModal();
+      void selectConversation(item.sessionId, item.providerId);
   }
 
   function handleModalBackdropClick(e: MouseEvent) {
       if (e.target === e.currentTarget) {
           closeSearch();
+      }
+  }
+
+  function handleIndexModalBackdropClick(e: MouseEvent) {
+      if (e.target === e.currentTarget) {
+          closeIndexModal();
       }
   }
 
@@ -588,6 +1317,7 @@
       // Disable global hotkeys while user is typing.
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
           if (e.key === 'Escape' && isSearchModalOpen) closeSearch();
+          if (e.key === 'Escape' && isIndexModalOpen) closeIndexModal();
           return;
       }
 
@@ -597,11 +1327,12 @@
       }
       if (e.key === 'Escape') {
           if (isSearchModalOpen) closeSearch();
+          else if (isIndexModalOpen) closeIndexModal();
           else if (isProjectMenuOpen) isProjectMenuOpen = false;
           else if (currentView === 'detail') currentView = 'list';
       }
       
-      if (!isSearchModalOpen && currentView === 'list' && projects.length > 0) {
+      if (!isSearchModalOpen && !isIndexModalOpen && currentView === 'list' && projects.length > 0) {
           if (e.key === 'j' || e.key === 'ArrowDown') {
              navigateProject(1);
           } else if (e.key === 'k' || e.key === 'ArrowUp') {
@@ -625,6 +1356,75 @@
       }
   }
 
+  function parseIndexDate(iso?: string): Date | null {
+      if (!iso) return null;
+      const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(iso)
+          ? iso.replace(' ', 'T') + 'Z'
+          : iso;
+      const date = new Date(normalized);
+      return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function formatRelativeTime(iso?: string): string {
+      if (!iso) return 'never';
+
+      const date = parseIndexDate(iso);
+      if (!date) return iso;
+      const diff = Date.now() - date.getTime();
+      if (Number.isNaN(diff)) return iso;
+      if (diff < 0) return 'just now';
+
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+  }
+
+  function formatIndexDateTime(iso?: string): string {
+      const date = parseIndexDate(iso);
+      if (!date) return iso ?? 'N/A';
+      return new Intl.DateTimeFormat(undefined, {
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+      }).format(date);
+  }
+
+  function providerDisplayName(providerId: string): string {
+      return ({
+          claude: 'Claude CLI',
+          codex: 'Codex CLI',
+          gemini: 'Gemini CLI',
+          openclaw: 'OpenClaw',
+          opencode: 'OpenCode',
+      } as Record<string, string>)[providerId] ?? providerId;
+  }
+
+  function formatBytes(bytes?: number): string {
+      if (!bytes || bytes <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let value = bytes;
+      let unitIndex = 0;
+      while (value >= 1024 && unitIndex < units.length - 1) {
+          value /= 1024;
+          unitIndex += 1;
+      }
+      return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+  }
+
+  function syncPhaseLabel(phase?: string): string {
+      if (phase === 'refreshing') return 'Waiting for stable write';
+      if (phase === 'scanning') return 'Scanning';
+      if (phase === 'syncing') return 'Syncing';
+      if (phase === 'done') return 'Up to date';
+      return 'Idle';
+  }
+
   const sourceLabel = $derived(({
       'claude': 'Claude CLI',
       'codex': 'Codex CLI',
@@ -636,6 +1436,27 @@
       currentConversation
           ? getSessionById(currentConversation.session_id, currentConversation.source_type)
           : null,
+  );
+  const indexStatusText = $derived(
+      searchIndexStatus?.ready
+          ? `Indexed ${formatRelativeTime(searchIndexStatus.lastIndexedAt)}`
+          : 'Index unavailable',
+  );
+  const indexSessionPreviewCount = $derived(indexLibraryItems.length);
+  const indexLibraryPageCount = $derived(
+      Math.max(1, Math.ceil(indexLibraryTotalCount / INDEX_LIBRARY_PAGE_SIZE)),
+  );
+  const indexLibraryRangeText = $derived(
+      indexLibraryTotalCount === 0
+          ? '0 shown'
+          : `${(indexLibraryPage - 1) * INDEX_LIBRARY_PAGE_SIZE + 1}-${Math.min(indexLibraryPage * INDEX_LIBRARY_PAGE_SIZE, indexLibraryTotalCount)} of ${indexLibraryTotalCount}`,
+  );
+  const indexSyncText = $derived(
+      searchIndexSyncInfo
+          ? `${syncPhaseLabel(searchIndexSyncInfo.phase)}${
+              searchIndexSyncInfo.total > 0 ? ` ${searchIndexSyncInfo.count}/${searchIndexSyncInfo.total}` : ''
+            }`
+          : 'Idle',
   );
 
 </script>
@@ -692,6 +1513,9 @@
                  <button class="action-btn" id="openSearchBtn" onclick={openSearch} type="button">
                     {@html getIcon('search', 16)}
                  </button>
+                 <button class="action-btn index-toggle-btn" class:index-ready={searchIndexStatus?.ready} onclick={() => void openIndexModal()} type="button" title="Search Index">
+                    {@html getIcon('database', 16)}
+                 </button>
                  <button class="action-btn theme-toggle" id="themeToggle" onclick={toggleTheme} type="button">
                      {#if theme === 'light'}
                        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z"></path></svg>
@@ -731,6 +1555,9 @@
                  <div class="view-header-actions">
                      <button class="action-btn" onclick={openSearch} type="button">
                         {@html getIcon('search', 16)}
+                     </button>
+                     <button class="action-btn index-toggle-btn" class:index-ready={searchIndexStatus?.ready} onclick={() => void openIndexModal()} type="button" title="Search Index">
+                        {@html getIcon('database', 16)}
                      </button>
                      <button class="action-btn theme-toggle" onclick={toggleTheme} type="button">
                          {#if theme === 'light'}
@@ -822,7 +1649,7 @@
                 <div class="messages-container">
                     {#each currentConversation.pairs as pair, i}
                         {#if pair.user}
-                            <div class="message user-message">
+                            <div class="message user-message" class:search-hit={isPairSearchMatch(pair, 'user')}>
                                 <div class="message-header">
                                     <div class="message-header-main">
                                         <span class="message-role">User</span>
@@ -846,7 +1673,7 @@
                             </div>
                         {/if}
                         {#if pair.assistant}
-                            <div class="message assistant-message">
+                            <div class="message assistant-message" class:search-hit={isPairSearchMatch(pair, 'assistant')}>
                                 <div class="message-header">
                                     <div class="message-header-main">
                                         <span class="message-role">Assistant</span>
@@ -907,10 +1734,41 @@
                      oninput={handleSearchInput} />
               <button class="btn-close-search" onclick={closeSearch} type="button">ESC</button>
           </div>
+          <div class="search-filter-bar">
+              <div class="search-filter-group">
+                  <button class:active={searchTimeRange === 'all'} class="filter-chip" type="button" onclick={() => setSearchTimeRange('all')}>All</button>
+                  <button class:active={searchTimeRange === '7d'} class="filter-chip" type="button" onclick={() => setSearchTimeRange('7d')}>7d</button>
+                  <button class:active={searchTimeRange === '30d'} class="filter-chip" type="button" onclick={() => setSearchTimeRange('30d')}>30d</button>
+                  <button class:active={searchTimeRange === '90d'} class="filter-chip" type="button" onclick={() => setSearchTimeRange('90d')}>90d</button>
+              </div>
+              <div class="search-filter-group search-filter-group-right">
+                  <span class="search-results-count">
+                      {#if searchQuery.trim()}
+                          {searchTotalCount} results
+                      {:else}
+                          Type to search
+                      {/if}
+                  </span>
+                  <button class:active={searchSort === 'relevance'} class="filter-chip" type="button" onclick={() => setSearchSort('relevance')}>
+                      Relevance
+                  </button>
+                  <button class:active={searchSort === 'recent'} class="filter-chip" type="button" onclick={() => setSearchSort('recent')}>
+                      Recent
+                  </button>
+                  {#if currentProject}
+                      <button class:active={searchProjectOnly} class="filter-chip" type="button" onclick={toggleSearchProjectOnly}>
+                          {searchProjectOnly ? 'Current project' : 'All projects'}
+                      </button>
+                  {/if}
+              </div>
+          </div>
           <div class="search-modal-results" id="searchModalResults">
               {#each searchResults as result}
                   <button class="conversation-item" onclick={() => handleSearchResultClick(result)} type="button">
                       <div class="conversation-title">{result.title}</div>
+                      {#if result.snippet}
+                          <div class="conversation-snippet search-snippet">{@html result.snippet}</div>
+                      {/if}
                        <div class="conversation-meta">
                             <span class="meta-item">{@html getIcon('project', 12)} {result.project}</span>
                             <span class="meta-item">{@html getIcon('clock', 12)} {result.date}</span>
@@ -918,6 +1776,223 @@
                   </button>
               {/each}
           </div>
+      </div>
+  </div>
+
+  <div
+      class="index-modal"
+      class:active={isIndexModalOpen}
+      role="button"
+      tabindex="0"
+      onclick={handleIndexModalBackdropClick}
+      onkeydown={(e) => e.key === 'Escape' && closeIndexModal()}
+  >
+      <div class="index-modal-card">
+          <div class="index-modal-header">
+              <div class="index-modal-title">
+                  <div class="index-modal-title-row">
+                      <span class:status-ok={searchIndexStatus?.ready} class="index-status-dot"></span>
+                      <h3>Search Index</h3>
+                  </div>
+                  <p>{indexStatusText}</p>
+              </div>
+              <button class="btn-close-search" onclick={closeIndexModal} type="button">ESC</button>
+          </div>
+
+          <div class="index-tab-bar">
+              <button
+                  class="index-tab-btn"
+                  class:active={indexModalTab === 'overview'}
+                  type="button"
+                  onclick={() => void setIndexModalTab('overview')}
+              >
+                  Overview
+              </button>
+              <button
+                  class="index-tab-btn"
+                  class:active={indexModalTab === 'sessions'}
+                  type="button"
+                  onclick={() => void setIndexModalTab('sessions')}
+              >
+                  Indexed Sessions
+              </button>
+          </div>
+
+          {#if indexModalTab === 'overview'}
+              <div class="index-modal-summary">
+                  <div class="index-summary-card">
+                      <span class="index-summary-label">Database</span>
+                      <span class="index-summary-value">{searchIndexStatus?.dbPath || 'Unavailable'}</span>
+                  </div>
+                  <div class="index-summary-grid">
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Sync Status</span>
+                          <strong>{indexSyncText}</strong>
+                          {#if searchIndexSyncInfo?.message}
+                              <span class="index-summary-subtle">{searchIndexSyncInfo.message}</span>
+                          {/if}
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Projects</span>
+                          <strong>{searchIndexStatus?.projectsCount ?? 0}</strong>
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Sessions</span>
+                          <strong>{searchIndexStatus?.sessionsCount ?? 0}</strong>
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Messages</span>
+                          <strong>{searchIndexStatus?.messagesCount ?? 0}</strong>
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Database Size</span>
+                          <strong>{formatBytes(searchIndexStatus?.dbSizeBytes)}</strong>
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Last Indexed</span>
+                          <div class="index-summary-hover">
+                              <span class="index-summary-hover-chip">Status</span>
+                              <div class="index-summary-tooltip">
+                                  <div class="index-summary-tooltip-row">
+                                      <span>Last Success</span>
+                                      <strong>{formatIndexDateTime(searchIndexStatus?.lastSuccessfulSyncAt)}</strong>
+                                  </div>
+                                  <div class="index-summary-tooltip-row">
+                                      <span>Last Error</span>
+                                      <strong>{formatIndexDateTime(searchIndexStatus?.lastErrorAt)}</strong>
+                                  </div>
+                              </div>
+                          </div>
+                          <strong>{formatIndexDateTime(searchIndexStatus?.lastIndexedAt)}</strong>
+                      </div>
+                      <div class="index-summary-card">
+                          <span class="index-summary-label">Errors</span>
+                          <strong>{searchIndexStatus?.errorCount ?? 0}</strong>
+                      </div>
+                  </div>
+                  {#if searchIndexStatus?.sources?.length}
+                      <div class="index-source-grid">
+                          {#each searchIndexStatus.sources as source}
+                              <div class="index-source-card">
+                                  <div class="index-source-head">
+                                      <strong>{providerDisplayName(source.providerId)}</strong>
+                                      <span>{source.sessionsCount} sessions</span>
+                                  </div>
+                                  <div class="index-source-metrics">
+                                      <span>{source.projectsCount} projects</span>
+                                      <span>{source.messagesCount} messages</span>
+                                  </div>
+                              </div>
+                          {/each}
+                      </div>
+                  {/if}
+                  <div class="index-status-actions">
+                      <button class="index-action-btn" type="button" onclick={() => runSearchIndexAction('refresh')} disabled={isIndexActionRunning}>
+                          Sync
+                      </button>
+                      <button class="index-action-btn" type="button" onclick={() => runSearchIndexAction('rebuild')} disabled={isIndexActionRunning}>
+                          Rebuild
+                      </button>
+                  </div>
+              </div>
+          {:else}
+              <div class="index-library-section">
+                  <div class="index-library-header">
+                      <div>
+                          <h4>Indexed Sessions</h4>
+                          <p>Click a session to open it directly from the local index.</p>
+                      </div>
+                      <span class="view-info">{indexLibraryRangeText}</span>
+                  </div>
+
+                  <div class="index-library-filters">
+                      <label class="index-filter-field">
+                          <span>Provider</span>
+                          <select
+                              class="index-filter-select"
+                              value={indexLibraryProviderFilter}
+                              onchange={(event) => void setIndexLibraryProviderFilter((event.currentTarget as HTMLSelectElement).value)}
+                          >
+                              <option value="all">All providers</option>
+                              {#each sources as source}
+                                  <option value={source}>{providerDisplayName(source)}</option>
+                              {/each}
+                          </select>
+                      </label>
+                      <label class="index-filter-field">
+                          <span>Project</span>
+                          <select
+                              class="index-filter-select"
+                              value={indexLibraryProjectFilter}
+                              onchange={(event) => void setIndexLibraryProjectFilter((event.currentTarget as HTMLSelectElement).value)}
+                          >
+                              <option value="all">All projects</option>
+                              {#each indexProjectOptions as project}
+                                  <option value={project.project}>
+                                      {project.projectName || baseName(project.project) || project.project} ({project.sessionsCount})
+                                  </option>
+                              {/each}
+                          </select>
+                      </label>
+                  </div>
+
+                  <div class="index-library-list">
+                      {#if isIndexLibraryLoading}
+                          <div class="index-library-empty">Loading indexed sessions...</div>
+                      {:else if indexLibraryItems.length === 0}
+                          <div class="index-library-empty">No indexed sessions available.</div>
+                      {:else}
+                          {#each indexLibraryItems as item}
+                              <button class="index-library-item" type="button" onclick={() => handleIndexSessionClick(item)}>
+                                  <div class="index-library-item-top">
+                                      <strong>{item.title || item.sessionId}</strong>
+                                      <span class="index-provider-pill">{providerDisplayName(item.providerId)}</span>
+                                  </div>
+                                  <div class="index-library-meta">
+                                      <span class="meta-item">{@html getIcon('project', 12)} {item.projectName || baseName(item.project) || item.project}</span>
+                                      <span class="meta-item">{@html getIcon('message', 12)} {item.messageCount} messages</span>
+                                      <span class="meta-item">{@html getIcon('clock', 12)} {formatTimestamp(item.lastActiveAt ?? item.createdAt)}</span>
+                                  </div>
+                                  {#if item.model || item.cwd}
+                                      <div class="index-library-extra">
+                                          {#if item.model}
+                                              <span>Model: {item.model}</span>
+                                          {/if}
+                                          {#if item.cwd}
+                                              <span>CWD: {item.cwd}</span>
+                                          {/if}
+                                      </div>
+                                  {/if}
+                              </button>
+                          {/each}
+                      {/if}
+                  </div>
+
+                  <div class="index-library-pagination">
+                      <span class="index-pagination-info">
+                          Page {indexLibraryPage} / {indexLibraryPageCount} · {indexSessionPreviewCount} loaded
+                      </span>
+                      <div class="index-pagination-actions">
+                          <button
+                              class="index-page-btn"
+                              type="button"
+                              onclick={() => void changeIndexLibraryPage(indexLibraryPage - 1)}
+                              disabled={isIndexLibraryLoading || indexLibraryPage <= 1}
+                          >
+                              Previous
+                          </button>
+                          <button
+                              class="index-page-btn"
+                              type="button"
+                              onclick={() => void changeIndexLibraryPage(indexLibraryPage + 1)}
+                              disabled={isIndexLibraryLoading || indexLibraryPage >= indexLibraryPageCount}
+                          >
+                              Next
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          {/if}
       </div>
   </div>
 
