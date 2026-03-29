@@ -95,6 +95,9 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             msg_uuid: Some(msg_id),
             parent_uuid: None,
             role,
+            kind: "message".to_string(),
+            name: None,
+            call_id: None,
             content,
             ts: if ts > 0 { Some(ts) } else { None },
             is_sidechain: false,
@@ -189,7 +192,8 @@ fn parse_session(storage: &Path, path: &Path) -> Option<SessionMeta> {
         .and_then(Value::as_str)
         .or_else(|| value.get("modelName").and_then(Value::as_str))
         .or_else(|| {
-            value.get("config")
+            value
+                .get("config")
                 .and_then(|config| config.get("model"))
                 .and_then(Value::as_str)
         })

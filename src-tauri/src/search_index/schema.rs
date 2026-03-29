@@ -1,5 +1,7 @@
 use rusqlite::Connection;
 
+const SEARCH_SCHEMA_VERSION: i32 = 1;
+
 pub fn run_migrations(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(
@@ -54,7 +56,11 @@ pub fn run_migrations(connection: &Connection) -> Result<(), String> {
               msg_uuid     TEXT,
               parent_uuid  TEXT,
               role         TEXT NOT NULL,
+              kind         TEXT NOT NULL DEFAULT 'message',
+              name         TEXT,
+              call_id      TEXT,
               content_text TEXT NOT NULL DEFAULT '',
+              search_text  TEXT NOT NULL DEFAULT '',
               ts           INTEGER,
               is_sidechain INTEGER NOT NULL DEFAULT 0,
               tool_names   TEXT NOT NULL DEFAULT '[]',
@@ -68,33 +74,6 @@ pub fn run_migrations(connection: &Connection) -> Result<(), String> {
 
             CREATE INDEX IF NOT EXISTS idx_projects_source_display_path
               ON projects(source_id, display_path);
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-              content_text,
-              content='messages',
-              content_rowid='id',
-              tokenize='unicode61 remove_diacritics 1'
-            );
-
-            CREATE TRIGGER IF NOT EXISTS messages_fts_insert
-            AFTER INSERT ON messages BEGIN
-              INSERT INTO messages_fts(rowid, content_text)
-                VALUES (NEW.id, NEW.content_text);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS messages_fts_update
-            AFTER UPDATE ON messages BEGIN
-              INSERT INTO messages_fts(messages_fts, rowid, content_text)
-                VALUES ('delete', OLD.id, OLD.content_text);
-              INSERT INTO messages_fts(rowid, content_text)
-                VALUES (NEW.id, NEW.content_text);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS messages_fts_delete
-            AFTER DELETE ON messages BEGIN
-              INSERT INTO messages_fts(messages_fts, rowid, content_text)
-                VALUES ('delete', OLD.id, OLD.content_text);
-            END;
 
             CREATE TABLE IF NOT EXISTS sync_log (
               id          INTEGER PRIMARY KEY,
@@ -161,6 +140,30 @@ pub fn run_migrations(connection: &Connection) -> Result<(), String> {
     ensure_column(
         connection,
         "messages",
+        "kind",
+        "ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'message'",
+    )?;
+    ensure_column(
+        connection,
+        "messages",
+        "name",
+        "ALTER TABLE messages ADD COLUMN name TEXT",
+    )?;
+    ensure_column(
+        connection,
+        "messages",
+        "call_id",
+        "ALTER TABLE messages ADD COLUMN call_id TEXT",
+    )?;
+    ensure_column(
+        connection,
+        "messages",
+        "search_text",
+        "ALTER TABLE messages ADD COLUMN search_text TEXT NOT NULL DEFAULT ''",
+    )?;
+    ensure_column(
+        connection,
+        "messages",
         "is_sidechain",
         "ALTER TABLE messages ADD COLUMN is_sidechain INTEGER NOT NULL DEFAULT 0",
     )?;
@@ -172,9 +175,106 @@ pub fn run_migrations(connection: &Connection) -> Result<(), String> {
     )?;
 
     connection
+        .execute(
+            r#"
+            UPDATE messages
+            SET search_text = content_text
+            WHERE COALESCE(search_text, '') = ''
+              AND COALESCE(kind, 'message') = 'message'
+            "#,
+            [],
+        )
+        .map_err(|e| format!("Failed to backfill messages.search_text: {e}"))?;
+
+    if needs_search_fts_rebuild(connection)? {
+        recreate_search_fts(connection)?;
+        set_user_version(connection, SEARCH_SCHEMA_VERSION)?;
+    }
+
+    connection
         .execute_batch("PRAGMA optimize;")
         .map_err(|e| format!("Failed to optimize search DB: {e}"))?;
 
+    Ok(())
+}
+
+fn needs_search_fts_rebuild(connection: &Connection) -> Result<bool, String> {
+    let user_version = get_user_version(connection)?;
+    if user_version < SEARCH_SCHEMA_VERSION {
+        return Ok(true);
+    }
+
+    table_exists(connection, "messages_fts")
+        .map(|exists| !exists)
+        .map_err(|e| format!("Failed to inspect messages_fts existence: {e}"))
+}
+
+fn get_user_version(connection: &Connection) -> Result<i32, String> {
+    connection
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0))
+        .map_err(|e| format!("Failed to read PRAGMA user_version: {e}"))
+}
+
+fn set_user_version(connection: &Connection, version: i32) -> Result<(), String> {
+    connection
+        .execute_batch(&format!("PRAGMA user_version = {version};"))
+        .map_err(|e| format!("Failed to update PRAGMA user_version: {e}"))
+}
+
+fn table_exists(connection: &Connection, table: &str) -> Result<bool, rusqlite::Error> {
+    connection.query_row(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+        [table],
+        |_| Ok(()),
+    )
+    .map(|_| true)
+    .or_else(|err| match err {
+        rusqlite::Error::QueryReturnedNoRows => Ok(false),
+        other => Err(other),
+    })
+}
+
+fn recreate_search_fts(connection: &Connection) -> Result<(), String> {
+    connection
+        .execute_batch(
+            r#"
+            DROP TRIGGER IF EXISTS messages_fts_insert;
+            DROP TRIGGER IF EXISTS messages_fts_update;
+            DROP TRIGGER IF EXISTS messages_fts_delete;
+            DROP TABLE IF EXISTS messages_fts;
+
+            CREATE VIRTUAL TABLE messages_fts USING fts5(
+              search_text,
+              content='messages',
+              content_rowid='id',
+              tokenize='unicode61 remove_diacritics 1'
+            );
+
+            CREATE TRIGGER messages_fts_insert
+            AFTER INSERT ON messages BEGIN
+              INSERT INTO messages_fts(rowid, search_text)
+                VALUES (NEW.id, NEW.search_text);
+            END;
+
+            CREATE TRIGGER messages_fts_update
+            AFTER UPDATE ON messages BEGIN
+              INSERT INTO messages_fts(messages_fts, rowid, search_text)
+                VALUES ('delete', OLD.id, OLD.search_text);
+              INSERT INTO messages_fts(rowid, search_text)
+                VALUES (NEW.id, NEW.search_text);
+            END;
+
+            CREATE TRIGGER messages_fts_delete
+            AFTER DELETE ON messages BEGIN
+              INSERT INTO messages_fts(messages_fts, rowid, search_text)
+                VALUES ('delete', OLD.id, OLD.search_text);
+            END;
+
+            INSERT INTO messages_fts(rowid, search_text)
+            SELECT id, search_text FROM messages;
+            "#,
+        )
+        .map_err(|e| format!("Failed to recreate messages FTS: {e}"))?;
     Ok(())
 }
 

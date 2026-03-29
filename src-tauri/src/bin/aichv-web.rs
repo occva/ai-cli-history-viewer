@@ -179,7 +179,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/search/index/refresh", post(refresh_search_index))
         .route("/search/content", post(search_content))
         .route("/search/index/sessions", get(list_indexed_sessions))
-        .route("/search/index/sessions/page", get(list_indexed_sessions_page))
+        .route(
+            "/search/index/sessions/page",
+            get(list_indexed_sessions_page),
+        )
         .route("/search/index/projects", get(list_indexed_projects))
         .route(
             "/search/index/sessions/by-paths",
@@ -423,10 +426,11 @@ async fn list_indexed_projects(
         }
     });
 
-    let projects = spawn_blocking(move || search_index::list_indexed_projects(provider_id.as_deref()))
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to list indexed projects: {e}")))?
-        .map_err(AppError::internal)?;
+    let projects =
+        spawn_blocking(move || search_index::list_indexed_projects(provider_id.as_deref()))
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to list indexed projects: {e}")))?
+            .map_err(AppError::internal)?;
 
     Ok(Json(ApiResult {
         ok: true,

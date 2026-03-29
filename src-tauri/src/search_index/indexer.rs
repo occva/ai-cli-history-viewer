@@ -7,9 +7,9 @@ use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
 use crate::session_manager::{self, SessionMeta};
 
-use super::{SyncProgress, SyncProgressPhase};
 use super::status;
 use super::types::{RebuildSearchIndexResult, RefreshSearchIndexResult};
+use super::{SyncProgress, SyncProgressPhase};
 
 const PROVIDERS: [&str; 5] = ["claude", "codex", "gemini", "openclaw", "opencode"];
 
@@ -311,8 +311,13 @@ fn upsert_session_index(
     let project = resolve_project(session, source_path);
     let project_id = get_or_create_project(transaction, source_id, &project)?;
     let file_state = read_source_metadata(source_path);
-    let message_count = i64::try_from(messages.iter().filter(|message| !message.is_sidechain).count())
-        .unwrap_or(i64::MAX);
+    let message_count = i64::try_from(
+        messages
+            .iter()
+            .filter(|message| !message.is_sidechain)
+            .count(),
+    )
+    .unwrap_or(i64::MAX);
     let has_tool_use = messages
         .iter()
         .any(|message| !message.tool_names.is_empty() || message.role == "tool");
@@ -435,20 +440,28 @@ fn upsert_session_index(
               msg_uuid,
               parent_uuid,
               role,
+              kind,
+              name,
+              call_id,
               content_text,
+              search_text,
               ts,
               is_sidechain,
               tool_names,
               seq
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .map_err(|e| format!("Failed to prepare message insert statement: {e}"))?;
 
     for (index, message) in messages.iter().enumerate() {
-        let tool_names = serde_json::to_string(&message.tool_names)
-            .map_err(|e| format!("Failed to encode tool names for {}: {e}", session.session_id))?;
+        let tool_names = serde_json::to_string(&message.tool_names).map_err(|e| {
+            format!(
+                "Failed to encode tool names for {}: {e}",
+                session.session_id
+            )
+        })?;
         insert_message
             .execute(params![
                 session_row_id,
@@ -456,7 +469,11 @@ fn upsert_session_index(
                 message.msg_uuid.as_deref(),
                 message.parent_uuid.as_deref(),
                 message.role.as_str(),
+                message.kind.as_str(),
+                message.name.as_deref(),
+                message.call_id.as_deref(),
                 message.content.as_str(),
+                message.searchable_text(),
                 message.ts,
                 message.is_sidechain,
                 tool_names,

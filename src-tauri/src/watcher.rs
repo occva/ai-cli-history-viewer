@@ -181,13 +181,20 @@ fn watch_loop(app_handle: AppHandle, provider_roots: Vec<(String, PathBuf)>) -> 
             Err(_) => return Ok(()),
         };
 
-        emit_event(&app_handle, SearchIndexSyncEvent::refreshing("Detected session file changes"));
+        emit_event(
+            &app_handle,
+            SearchIndexSyncEvent::refreshing("Detected session file changes"),
+        );
 
         while let Ok(batch) = rx.recv_timeout(Duration::from_millis(800)) {
             merge_changed_sources(&mut pending_changes, batch);
         }
 
-        wait_for_stable_paths(&mut pending_changes, Duration::from_millis(1800), Duration::from_millis(250));
+        wait_for_stable_paths(
+            &mut pending_changes,
+            Duration::from_millis(1800),
+            Duration::from_millis(250),
+        );
         let changed_sources = pending_changes
             .iter()
             .map(|change| change.source.clone())
@@ -208,9 +215,13 @@ fn watch_loop(app_handle: AppHandle, provider_roots: Vec<(String, PathBuf)>) -> 
                 let status = match search_index::get_index_status() {
                     Ok(status) => status,
                     Err(err) => {
-                        log::error!("Failed to load search index status after watcher refresh: {err}");
+                        log::error!(
+                            "Failed to load search index status after watcher refresh: {err}"
+                        );
                         search_index::SearchIndexStatus {
-                            db_path: crate::paths::get_search_db_path().to_string_lossy().to_string(),
+                            db_path: crate::paths::get_search_db_path()
+                                .to_string_lossy()
+                                .to_string(),
                             ready: result.indexed_sessions > 0,
                             sources_count: 0,
                             projects_count: 0,

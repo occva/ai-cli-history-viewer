@@ -110,6 +110,11 @@ pub struct IndexedMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_uuid: Option<String>,
     pub role: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub call_id: Option<String>,
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ts: Option<i64>,

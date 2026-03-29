@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -40,6 +41,7 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
     let file = File::open(path).map_err(|e| format!("Failed to open session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut messages = Vec::new();
+    let mut call_names = HashMap::new();
 
     for line in reader.lines() {
         let line = match line {
@@ -59,27 +61,103 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             Some(payload) => payload,
             None => continue,
         };
-
-        if payload.get("type").and_then(Value::as_str) != Some("message") {
-            continue;
-        }
-
-        let role = payload
-            .get("role")
+        let payload_type = payload
+            .get("type")
             .and_then(Value::as_str)
-            .unwrap_or("unknown")
-            .to_string();
-        let content = payload.get("content").map(extract_text).unwrap_or_default();
-        if content.trim().is_empty() {
-            continue;
-        }
-
+            .unwrap_or_default();
         let ts = value.get("timestamp").and_then(parse_timestamp_to_ms);
 
-        messages.push(SessionMessage::plain(role, content, ts));
+        match payload_type {
+            "message" => {
+                let role = payload
+                    .get("role")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown")
+                    .to_string();
+                let content = payload.get("content").map(extract_text).unwrap_or_default();
+                if content.trim().is_empty() {
+                    continue;
+                }
+                messages.push(SessionMessage::plain(role, content, ts));
+            }
+            "function_call" => {
+                let name = payload
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                let call_id = payload
+                    .get("call_id")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                if let (Some(call_id), Some(name)) = (call_id.clone(), name.clone()) {
+                    call_names.insert(call_id, name);
+                }
+
+                let content = format_function_call_content(payload);
+                if content.trim().is_empty() {
+                    continue;
+                }
+
+                messages.push(SessionMessage::structured(
+                    "assistant".to_string(),
+                    "function_call",
+                    name,
+                    call_id,
+                    content,
+                    ts,
+                ));
+            }
+            "function_call_output" => {
+                let call_id = payload
+                    .get("call_id")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                let name = call_id
+                    .as_ref()
+                    .and_then(|value| call_names.get(value))
+                    .cloned();
+                let content = payload
+                    .get("output")
+                    .and_then(Value::as_str)
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default();
+                if content.is_empty() {
+                    continue;
+                }
+
+                messages.push(SessionMessage::structured(
+                    "tool".to_string(),
+                    "function_call_output",
+                    name,
+                    call_id,
+                    content,
+                    ts,
+                ));
+            }
+            _ => {}
+        }
     }
 
     Ok(messages)
+}
+
+fn format_function_call_content(payload: &Value) -> String {
+    let raw_arguments = payload
+        .get("arguments")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default();
+    if raw_arguments.is_empty() {
+        return String::new();
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<Value>(raw_arguments) {
+        if let Ok(pretty) = serde_json::to_string_pretty(&parsed) {
+            return pretty;
+        }
+    }
+
+    raw_arguments.to_string()
 }
 
 pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
@@ -225,5 +303,39 @@ fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
             files.push(path);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn load_messages_keeps_function_calls_and_outputs() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("session.jsonl");
+        let content = [
+            r#"{"timestamp":"2026-03-29T06:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"请检查项目"}]}}"#,
+            r#"{"timestamp":"2026-03-29T06:00:01Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"Get-ChildItem\"}","call_id":"call_123"}}"#,
+            r#"{"timestamp":"2026-03-29T06:00:02Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_123","output":"Exit code: 0\nOutput:\nfile-a"}}"#,
+            r#"{"timestamp":"2026-03-29T06:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"已完成检查"}]}}"#,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let messages = load_messages(&path).expect("load messages");
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[1].kind, "function_call");
+        assert_eq!(messages[1].name.as_deref(), Some("shell_command"));
+        assert_eq!(messages[1].call_id.as_deref(), Some("call_123"));
+        assert!(messages[1].content.contains("Get-ChildItem"));
+        assert_eq!(messages[2].kind, "function_call_output");
+        assert_eq!(messages[2].role, "tool");
+        assert_eq!(messages[2].name.as_deref(), Some("shell_command"));
+        assert_eq!(messages[2].searchable_text(), "");
     }
 }

@@ -38,6 +38,12 @@ pub struct SessionMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_uuid: Option<String>,
     pub role: String,
+    #[serde(skip_serializing_if = "is_message_kind")]
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub call_id: Option<String>,
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ts: Option<i64>,
@@ -53,16 +59,53 @@ impl SessionMessage {
             msg_uuid: None,
             parent_uuid: None,
             role,
+            kind: "message".to_string(),
+            name: None,
+            call_id: None,
             content,
             ts,
             is_sidechain: false,
             tool_names: Vec::new(),
         }
     }
+
+    pub fn structured(
+        role: String,
+        kind: impl Into<String>,
+        name: Option<String>,
+        call_id: Option<String>,
+        content: String,
+        ts: Option<i64>,
+    ) -> Self {
+        Self {
+            msg_uuid: None,
+            parent_uuid: None,
+            role,
+            kind: kind.into(),
+            name,
+            call_id,
+            content,
+            ts,
+            is_sidechain: false,
+            tool_names: Vec::new(),
+        }
+    }
+
+    pub fn searchable_text(&self) -> &str {
+        if self.kind == "message" {
+            self.content.as_str()
+        } else {
+            ""
+        }
+    }
 }
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_message_kind(value: &String) -> bool {
+    value == "message"
 }
 
 pub fn scan_sessions() -> Vec<SessionMeta> {

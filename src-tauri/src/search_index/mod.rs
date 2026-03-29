@@ -142,7 +142,9 @@ mod tests {
 
     #[test]
     fn rebuild_and_search_roundtrip() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let fixture = SearchFixture::new();
 
         let rebuild = rebuild_index().expect("rebuild search index");
@@ -174,7 +176,7 @@ mod tests {
             None,
             Some("relevance"),
         )
-            .expect("search content");
+        .expect("search content");
         let hits = result.hits;
         assert_eq!(result.total_count, 2);
         assert_eq!(hits.len(), 2);
@@ -188,8 +190,27 @@ mod tests {
     }
 
     #[test]
+    fn search_content_finds_cjk_substrings() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fixture = SearchFixture::new();
+
+        rebuild_index().expect("rebuild search index");
+
+        let result = search_content("删除", 10, Some("claude"), None, None, Some("relevance"))
+            .expect("search chinese substring");
+        assert!(result.total_count >= 1);
+        assert!(!result.hits.is_empty());
+        assert!(result.hits[0].snippet.contains("<mark>删除</mark>"));
+        assert_eq!(result.hits[0].source_path, fixture.source_path);
+    }
+
+    #[test]
     fn refresh_detects_add_update_remove() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let fixture = SearchFixture::new();
 
         let initial = rebuild_index().expect("initial rebuild");
@@ -232,7 +253,9 @@ mod tests {
 
     #[test]
     fn delete_indexed_session_removes_index_rows() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let fixture = SearchFixture::new();
 
         rebuild_index().expect("rebuild");
@@ -257,7 +280,9 @@ mod tests {
 
     #[test]
     fn search_content_respects_project_and_since_filters() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let fixture = SearchFixture::new();
 
         rebuild_index().expect("rebuild");
@@ -287,6 +312,70 @@ mod tests {
         assert!(misses.is_empty());
     }
 
+    #[test]
+    fn list_queries_hide_empty_placeholder_sessions() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fixture = SearchFixture::new();
+
+        fixture.write_empty_codex_session("empty-codex-session");
+        fixture.write_metadata_only_codex_session("metadata-only-codex-session");
+        rebuild_index().expect("rebuild");
+
+        let sessions = list_indexed_sessions(20, Some("codex")).expect("codex indexed sessions");
+        assert!(sessions.is_empty());
+
+        let paged = list_indexed_sessions_page(20, 0, Some("codex"), None)
+            .expect("paged codex indexed sessions");
+        assert_eq!(paged.total_count, 0);
+        assert!(paged.items.is_empty());
+
+        let projects = list_indexed_projects(Some("codex")).expect("codex indexed projects");
+        assert!(projects.is_empty());
+
+        let by_paths = list_indexed_sessions_by_source_paths(
+            "codex",
+            &[
+                fixture.empty_codex_source_path.clone(),
+                fixture.metadata_only_codex_source_path.clone(),
+            ],
+        )
+        .expect("codex by-path sessions");
+        assert!(by_paths.is_empty());
+    }
+
+    #[test]
+    fn indexed_messages_keep_tool_calls_but_search_ignores_them() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fixture = SearchFixture::new();
+
+        fixture.write_codex_session_with_tooling("codex-tool-session");
+        rebuild_index().expect("rebuild");
+
+        let messages = get_indexed_session_messages("codex", &fixture.codex_tool_source_path)
+            .expect("indexed codex tool messages");
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[1].kind, "function_call");
+        assert_eq!(messages[1].name.as_deref(), Some("shell_command"));
+        assert_eq!(messages[2].kind, "function_call_output");
+        assert_eq!(messages[2].call_id.as_deref(), Some("call_900"));
+
+        let search = search_content(
+            "TOOL_ARGUMENT_CANARY_77",
+            10,
+            Some("codex"),
+            None,
+            None,
+            Some("relevance"),
+        )
+        .expect("search codex tool payload");
+        assert_eq!(search.total_count, 0);
+        assert!(search.hits.is_empty());
+    }
+
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
@@ -297,6 +386,10 @@ mod tests {
         _env: EnvGuard,
         source_path: String,
         claude_project_path: String,
+        codex_sessions_path: String,
+        empty_codex_source_path: String,
+        metadata_only_codex_source_path: String,
+        codex_tool_source_path: String,
     }
 
     impl SearchFixture {
@@ -347,13 +440,26 @@ mod tests {
                 _env: env,
                 source_path: source_path.to_string_lossy().to_string(),
                 claude_project_path: claude_project.to_string_lossy().to_string(),
+                codex_sessions_path: codex_sessions.to_string_lossy().to_string(),
+                empty_codex_source_path: codex_sessions
+                    .join("empty-codex-session.jsonl")
+                    .to_string_lossy()
+                    .to_string(),
+                metadata_only_codex_source_path: codex_sessions
+                    .join("metadata-only-codex-session.jsonl")
+                    .to_string_lossy()
+                    .to_string(),
+                codex_tool_source_path: codex_sessions
+                    .join("codex-tool-session.jsonl")
+                    .to_string_lossy()
+                    .to_string(),
             };
             fixture.write_session(
                 "session-claude-1",
                 &[
                     (
                         "user",
-                        "Investigate XYLOPHONE_CANARY_42 in the search index.",
+                        "Investigate XYLOPHONE_CANARY_42 in the search index. 请删除旧逻辑。",
                     ),
                     (
                         "assistant",
@@ -386,6 +492,85 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join("\n");
             fs::write(session_path, format!("{lines}\n")).expect("write fixture session");
+        }
+
+        fn write_empty_codex_session(&self, session_id: &str) {
+            let session_path =
+                PathBuf::from(&self.codex_sessions_path).join(format!("{session_id}.jsonl"));
+            fs::write(session_path, "").expect("write empty codex session");
+        }
+
+        fn write_metadata_only_codex_session(&self, session_id: &str) {
+            let session_path =
+                PathBuf::from(&self.codex_sessions_path).join(format!("{session_id}.jsonl"));
+            let line = json!({
+                "timestamp": "2026-03-29T11:59:59Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": session_id,
+                    "cwd": self.claude_project_path,
+                    "model": "gpt-5-codex"
+                }
+            });
+            fs::write(session_path, format!("{line}\n")).expect("write metadata-only codex session");
+        }
+
+        fn write_codex_session_with_tooling(&self, session_id: &str) {
+            let session_path =
+                PathBuf::from(&self.codex_sessions_path).join(format!("{session_id}.jsonl"));
+            let lines = [
+                json!({
+                    "timestamp": "2026-03-29T12:00:00Z",
+                    "type": "session_meta",
+                    "payload": {
+                        "id": session_id,
+                        "cwd": self.claude_project_path,
+                        "model": "gpt-5-codex"
+                    }
+                }),
+                json!({
+                    "timestamp": "2026-03-29T12:00:01Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "请检查目录"}]
+                    }
+                }),
+                json!({
+                    "timestamp": "2026-03-29T12:00:02Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "shell_command",
+                        "arguments": "{\"command\":\"Write-Output TOOL_ARGUMENT_CANARY_77\"}",
+                        "call_id": "call_900"
+                    }
+                }),
+                json!({
+                    "timestamp": "2026-03-29T12:00:03Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "call_900",
+                        "output": "Exit code: 0\nOutput:\nTOOL_ARGUMENT_CANARY_77"
+                    }
+                }),
+                json!({
+                    "timestamp": "2026-03-29T12:00:04Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "目录检查完成"}]
+                    }
+                }),
+            ]
+            .into_iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+            fs::write(session_path, format!("{lines}\n")).expect("write codex tool session");
         }
 
         fn remove_session(&self, session_id: &str) {

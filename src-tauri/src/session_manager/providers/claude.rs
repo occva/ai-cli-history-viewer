@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::{collections::HashMap, mem};
 
 use serde_json::Value;
 
@@ -33,6 +34,7 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
     let file = File::open(path).map_err(|e| format!("Failed to open session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut messages = Vec::new();
+    let mut tool_names = HashMap::new();
 
     for line in reader.lines() {
         let line = match line {
@@ -58,17 +60,148 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             .and_then(Value::as_str)
             .unwrap_or("unknown")
             .to_string();
+        let ts = value.get("timestamp").and_then(parse_timestamp_to_ms);
+
+        if let Some(content_blocks) = message.get("content").and_then(Value::as_array) {
+            append_structured_blocks(
+                &mut messages,
+                &mut tool_names,
+                &role,
+                ts,
+                content_blocks,
+            );
+            continue;
+        }
+
+        let role = message
+            .get("role")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
         let content = message.get("content").map(extract_text).unwrap_or_default();
         if content.trim().is_empty() {
             continue;
         }
 
-        let ts = value.get("timestamp").and_then(parse_timestamp_to_ms);
-
         messages.push(SessionMessage::plain(role, content, ts));
     }
 
     Ok(messages)
+}
+
+fn append_structured_blocks(
+    messages: &mut Vec<SessionMessage>,
+    tool_names: &mut HashMap<String, String>,
+    role: &str,
+    ts: Option<i64>,
+    content_blocks: &[Value],
+) {
+    let mut text_buffer = String::new();
+
+    for block in content_blocks {
+        let block_type = block.get("type").and_then(Value::as_str).unwrap_or_default();
+        match block_type {
+            "text" => {
+                if let Some(text) = block.get("text").and_then(Value::as_str) {
+                    append_text_buffer(&mut text_buffer, text);
+                }
+            }
+            "tool_use" => {
+                flush_text_buffer(messages, role, ts, &mut text_buffer);
+                let name = block
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                let call_id = block
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                if let (Some(call_id), Some(name)) = (call_id.clone(), name.clone()) {
+                    tool_names.insert(call_id, name);
+                }
+
+                let content = block
+                    .get("input")
+                    .map(format_json_block)
+                    .unwrap_or_default();
+                if content.trim().is_empty() {
+                    continue;
+                }
+
+                let mut message = SessionMessage::structured(
+                    "assistant".to_string(),
+                    "tool_use",
+                    name.clone(),
+                    call_id,
+                    content,
+                    ts,
+                );
+                if let Some(name) = name {
+                    message.tool_names.push(name);
+                }
+                messages.push(message);
+            }
+            "tool_result" => {
+                flush_text_buffer(messages, role, ts, &mut text_buffer);
+                let call_id = block
+                    .get("tool_use_id")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string());
+                let name = call_id
+                    .as_ref()
+                    .and_then(|value| tool_names.get(value))
+                    .cloned();
+                let content = block.get("content").map(extract_text).unwrap_or_default();
+                if content.trim().is_empty() {
+                    continue;
+                }
+
+                messages.push(SessionMessage::structured(
+                    "tool".to_string(),
+                    "tool_result",
+                    name,
+                    call_id,
+                    content,
+                    ts,
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    flush_text_buffer(messages, role, ts, &mut text_buffer);
+}
+
+fn append_text_buffer(buffer: &mut String, next: &str) {
+    let trimmed = next.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+
+    if !buffer.is_empty() {
+        buffer.push_str("\n\n");
+    }
+    buffer.push_str(trimmed);
+}
+
+fn flush_text_buffer(
+    messages: &mut Vec<SessionMessage>,
+    role: &str,
+    ts: Option<i64>,
+    text_buffer: &mut String,
+) {
+    let content = mem::take(text_buffer);
+    if content.trim().is_empty() {
+        return;
+    }
+    messages.push(SessionMessage::plain(role.to_string(), content, ts));
+}
+
+fn format_json_block(value: &Value) -> String {
+    serde_json::to_string_pretty(value)
+        .unwrap_or_else(|_| value.to_string())
+        .trim()
+        .to_string()
 }
 
 pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
@@ -144,7 +277,8 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
                 .get("model")
                 .and_then(Value::as_str)
                 .or_else(|| {
-                    value.get("message")
+                    value
+                        .get("message")
                         .and_then(|message| message.get("model"))
                         .and_then(Value::as_str)
                 })
@@ -262,5 +396,41 @@ fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
         }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn load_messages_keeps_tool_use_and_result_blocks() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("session.jsonl");
+        let content = [
+            r#"{"sessionId":"claude-tool-1","cwd":"D:\\code","timestamp":"2026-03-29T06:00:00Z","message":{"role":"user","content":"请读取文件"}}"#,
+            r#"{"sessionId":"claude-tool-1","cwd":"D:\\code","timestamp":"2026-03-29T06:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"先读取文件。"},{"type":"tool_use","id":"tooluse_1","name":"Read","input":{"file_path":"D:\\code\\README.md"}}]}}"#,
+            r#"{"sessionId":"claude-tool-1","cwd":"D:\\code","timestamp":"2026-03-29T06:00:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tooluse_1","content":"line 1\nline 2"}]}}"#,
+            r#"{"sessionId":"claude-tool-1","cwd":"D:\\code","timestamp":"2026-03-29T06:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"读取完成。"}]}}"#,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write claude fixture");
+
+        let messages = load_messages(&path).expect("load messages");
+        assert_eq!(messages.len(), 5);
+        assert_eq!(messages[1].kind, "message");
+        assert_eq!(messages[1].role, "assistant");
+        assert_eq!(messages[2].kind, "tool_use");
+        assert_eq!(messages[2].name.as_deref(), Some("Read"));
+        assert_eq!(messages[2].call_id.as_deref(), Some("tooluse_1"));
+        assert!(messages[2].content.contains("file_path"));
+        assert_eq!(messages[3].kind, "tool_result");
+        assert_eq!(messages[3].role, "tool");
+        assert_eq!(messages[3].name.as_deref(), Some("Read"));
+        assert_eq!(messages[3].searchable_text(), "");
     }
 }
