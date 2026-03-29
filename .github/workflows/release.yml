@@ -1,0 +1,67 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: Install frontend dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Derive release version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${env:GITHUB_REF_NAME}"
+          if (-not $tag.StartsWith('v')) {
+            throw "Expected tag ref like v1.2.3, got: $tag"
+          }
+          $version = $tag.Substring(1)
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Run release checks
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1 -Scope release
+
+      - name: Build release artifacts
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version ${{ steps.version.outputs.version }} -AllowDirty
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body_path: release/v${{ steps.version.outputs.version }}/release-notes-v${{ steps.version.outputs.version }}.md
+          files: |
+            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}.exe
+            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}-x64-setup.exe
+            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}-x64-en-us.msi
