@@ -1,21 +1,21 @@
 services:
-  aichv-web:
-    image: "${AICHV_IMAGE:-ghcr.io/occva/ai-cli-history-viewer}:${AICHV_VERSION:-latest}"
-    container_name: aichv-web
+  acliv-web:
+    image: "${ACLIV_IMAGE:-ghcr.io/occva/acliv}:${ACLIV_VERSION:-latest}"
+    container_name: acliv-web
     restart: unless-stopped
     ports:
-      - "${BIND_HOST:-0.0.0.0}:${AICHV_PORT:-17860}:17860"
+      - "${BIND_HOST:-0.0.0.0}:${ACLIV_PORT:-17860}:17860"
     environment:
-      - AICHV_HOST=0.0.0.0
-      - AICHV_PORT=17860
-      - AICHV_HOME=/app/data
-      - AICHV_TOKEN=${AICHV_TOKEN:?AICHV_TOKEN is required}
-      - AICHV_CLAUDE_DIR=/host-data/claude/projects
-      - AICHV_CODEX_DIR=/host-data/codex/sessions
-      - AICHV_GEMINI_DIR=/host-data/gemini/tmp
-      - AICHV_OPENCLAW_DIR=/host-data/openclaw/agents
-      - AICHV_OPENCODE_DIR=/host-data/opencode/storage
-      - AICHV_RUN_AS_ROOT=${AICHV_RUN_AS_ROOT:-0}
+      - ACLIV_HOST=0.0.0.0
+      - ACLIV_PORT=17860
+      - ACLIV_HOME=/app/data
+      - ACLIV_TOKEN=${ACLIV_TOKEN:?ACLIV_TOKEN is required}
+      - ACLIV_CLAUDE_DIR=/host-data/claude/projects
+      - ACLIV_CODEX_DIR=/host-data/codex/sessions
+      - ACLIV_GEMINI_DIR=/host-data/gemini/tmp
+      - ACLIV_OPENCLAW_DIR=/host-data/openclaw/agents
+      - ACLIV_OPENCODE_DIR=/host-data/opencode/storage
+      - ACLIV_RUN_AS_ROOT=${ACLIV_RUN_AS_ROOT:-0}
       - TZ=${TZ:-Asia/Shanghai}
     volumes:
       - app_data:/app/data

@@ -78,21 +78,21 @@ function Set-PackageLockVersion {
   $content = Get-Content $FilePath -Raw
   $updated = [regex]::Replace(
     $content,
-    '(?s)\A(\s*\{\s*"name"\s*:\s*"ai-cli-history-viewer"\s*,\s*"version"\s*:\s*")[^"]+(")',
+    '(?s)\A(\s*\{\s*"name"\s*:\s*"acliv"\s*,\s*"version"\s*:\s*")[^"]+(")',
     "`${1}$NewVersion`${2}",
     1
   )
   $updated = [regex]::Replace(
     $updated,
-    '(?s)("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"ai-cli-history-viewer"\s*,\s*"version"\s*:\s*")[^"]+(")',
+    '(?s)("packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"acliv"\s*,\s*"version"\s*:\s*")[^"]+(")',
     "`${1}$NewVersion`${2}",
     1
   )
 
   if ($updated -eq $content) {
     if (
-      $content -notmatch ('(?s)\A\s*\{\s*"name"\s*:\s*"ai-cli-history-viewer"\s*,\s*"version"\s*:\s*"' + [regex]::Escape($NewVersion) + '"') -or
-      $content -notmatch ('(?s)"packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"ai-cli-history-viewer"\s*,\s*"version"\s*:\s*"' + [regex]::Escape($NewVersion) + '"')
+      $content -notmatch ('(?s)\A\s*\{\s*"name"\s*:\s*"acliv"\s*,\s*"version"\s*:\s*"' + [regex]::Escape($NewVersion) + '"') -or
+      $content -notmatch ('(?s)"packages"\s*:\s*\{\s*""\s*:\s*\{\s*"name"\s*:\s*"acliv"\s*,\s*"version"\s*:\s*"' + [regex]::Escape($NewVersion) + '"')
     ) {
       throw "Failed to update version in $FilePath"
     }
@@ -172,8 +172,8 @@ $packageJson = Join-Path $RepoRoot 'package.json'
 $packageLock = Join-Path $RepoRoot 'package-lock.json'
 $cargoToml = Join-Path $RepoRoot 'src-tauri\Cargo.toml'
 $tauriConfig = Join-Path $RepoRoot 'src-tauri\tauri.conf.json'
-$desktopTargetExe = Join-Path $RepoRoot 'src-tauri\target\release\ai-cli-history-viewer.exe'
-$webTargetExe = Join-Path $RepoRoot 'src-tauri\target\release\aichv-web.exe'
+$desktopTargetExe = Join-Path $RepoRoot 'src-tauri\target\release\acliv.exe'
+$webTargetExe = Join-Path $RepoRoot 'src-tauri\target\release\acliv-web.exe'
 
 Invoke-Step -Name 'sync version files' -Action {
   Set-JsonVersion -FilePath $packageJson -NewVersion $Version
@@ -194,7 +194,7 @@ Invoke-Step -Name 'clean previous build output' -Action {
 }
 
 Invoke-Step -Name 'build web binary' -Action {
-  cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin aichv-web
+  cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web
 }
 
 Invoke-Step -Name 'build desktop bundle' -Action {
@@ -205,17 +205,17 @@ Invoke-Step -Name 'build desktop bundle' -Action {
   npm run tauri build
 }
 
-$desktopExe = Join-Path $RepoRoot 'src-tauri\target\release\ai-cli-history-viewer.exe'
+$desktopExe = Join-Path $RepoRoot 'src-tauri\target\release\acliv.exe'
 $setupExe = Find-SingleFile -Glob (Join-Path $RepoRoot 'src-tauri\target\release\bundle\nsis\*.exe')
 $msiFile = Find-SingleFile -Glob (Join-Path $RepoRoot 'src-tauri\target\release\bundle\msi\*.msi')
-$webBinary = Join-Path $RepoRoot 'src-tauri\target\release\aichv-web.exe'
+$webBinary = Join-Path $RepoRoot 'src-tauri\target\release\acliv-web.exe'
 
 Invoke-Step -Name 'collect release artifacts' -Action {
-  Copy-Artifact -Source $desktopExe -Destination (Join-Path $releaseDir "ai-cli-history-viewer-v$Version.exe")
-  Copy-Artifact -Source $setupExe -Destination (Join-Path $releaseDir "ai-cli-history-viewer-v$Version-x64-setup.exe")
-  Copy-Artifact -Source $msiFile -Destination (Join-Path $releaseDir "ai-cli-history-viewer-v$Version-x64-en-us.msi")
+  Copy-Artifact -Source $desktopExe -Destination (Join-Path $releaseDir "acliv-v$Version.exe")
+  Copy-Artifact -Source $setupExe -Destination (Join-Path $releaseDir "acliv-v$Version-x64-setup.exe")
+  Copy-Artifact -Source $msiFile -Destination (Join-Path $releaseDir "acliv-v$Version-x64-en-us.msi")
   if (Test-Path $webBinary) {
-    Copy-Artifact -Source $webBinary -Destination (Join-Path $releaseDir "aichv-web-v$Version.exe")
+    Copy-Artifact -Source $webBinary -Destination (Join-Path $releaseDir "acliv-web-v$Version.exe")
   }
 }
 

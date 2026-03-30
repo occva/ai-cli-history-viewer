@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-export const WEB_TOKEN_STORAGE_KEY = 'aichv_token';
+export const WEB_TOKEN_STORAGE_KEY = 'acliv_token';
 
 // ==================== 类型定义 ====================
 

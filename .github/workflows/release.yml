@@ -62,6 +62,6 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           body_path: release/v${{ steps.version.outputs.version }}/release-notes-v${{ steps.version.outputs.version }}.md
           files: |
-            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}.exe
-            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}-x64-setup.exe
-            release/v${{ steps.version.outputs.version }}/ai-cli-history-viewer-v${{ steps.version.outputs.version }}-x64-en-us.msi
+            release/v${{ steps.version.outputs.version }}/acliv-v${{ steps.version.outputs.version }}.exe
+            release/v${{ steps.version.outputs.version }}/acliv-v${{ steps.version.outputs.version }}-x64-setup.exe
+            release/v${{ steps.version.outputs.version }}/acliv-v${{ steps.version.outputs.version }}-x64-en-us.msi

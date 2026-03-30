@@ -32,13 +32,13 @@ check_provider_dir() {
     return 0
   fi
 
-  if [ "$(id -u)" = "0" ] && [ "${AICHV_RUN_AS_ROOT:-0}" != "1" ]; then
+  if [ "$(id -u)" = "0" ] && [ "${ACLIV_RUN_AS_ROOT:-0}" != "1" ]; then
     if check_dir_access_as app "$path"; then
       return 0
     fi
 
     log_error "$label data directory is not readable by app user: $path"
-    log_error "Set AICHV_RUN_AS_ROOT=1 or mount a readable provider directory."
+    log_error "Set ACLIV_RUN_AS_ROOT=1 or mount a readable provider directory."
     exit 1
   fi
 
@@ -48,17 +48,17 @@ check_provider_dir() {
   fi
 }
 
-if [ -z "${AICHV_TOKEN:-}" ]; then
-  log_error "AICHV_TOKEN is required"
+if [ -z "${ACLIV_TOKEN:-}" ]; then
+  log_error "ACLIV_TOKEN is required"
   exit 1
 fi
 
 for provider in \
-  "Claude:${AICHV_CLAUDE_DIR:-}" \
-  "Codex:${AICHV_CODEX_DIR:-}" \
-  "Gemini:${AICHV_GEMINI_DIR:-}" \
-  "OpenClaw:${AICHV_OPENCLAW_DIR:-}" \
-  "OpenCode:${AICHV_OPENCODE_DIR:-}"
+  "Claude:${ACLIV_CLAUDE_DIR:-}" \
+  "Codex:${ACLIV_CODEX_DIR:-}" \
+  "Gemini:${ACLIV_GEMINI_DIR:-}" \
+  "OpenClaw:${ACLIV_OPENCLAW_DIR:-}" \
+  "OpenCode:${ACLIV_OPENCODE_DIR:-}"
 do
   label="${provider%%:*}"
   path="${provider#*:}"
@@ -69,15 +69,15 @@ if [ "$(id -u)" = "0" ]; then
   mkdir -p /app/data
   chown -R app:app /app 2>/dev/null || true
 
-  if [ "${AICHV_RUN_AS_ROOT:-0}" = "1" ]; then
-    log_warn "Running aichv-web as root because AICHV_RUN_AS_ROOT=1."
+  if [ "${ACLIV_RUN_AS_ROOT:-0}" = "1" ]; then
+    log_warn "Running acliv-web as root because ACLIV_RUN_AS_ROOT=1."
   else
     exec su-exec app "$0" "$@"
   fi
 fi
 
 if [ "${1#-}" != "$1" ]; then
-  set -- /app/aichv-web "$@"
+  set -- /app/acliv-web "$@"
 fi
 
 exec "$@"

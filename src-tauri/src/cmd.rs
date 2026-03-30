@@ -362,7 +362,7 @@ fn command_exists_on_path(executable: &str) -> bool {
 fn build_powershell_prompt_script(command: &str) -> String {
     let escaped_command = command.replace('\'', "''");
     format!(
-        "$Host.UI.RawUI.WindowTitle = 'AI CLI History Viewer - PowerShell'; \
+        "$Host.UI.RawUI.WindowTitle = 'ACLIV - PowerShell'; \
 Write-Host ''; \
 Write-Host 'Resume command copied to clipboard.' -ForegroundColor Cyan; \
 Write-Host 'Paste and run this command:' -ForegroundColor Cyan; \

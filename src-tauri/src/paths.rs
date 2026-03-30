@@ -10,7 +10,7 @@ fn env_dir(name: &str) -> Option<PathBuf> {
 }
 
 fn home_dir() -> PathBuf {
-    if let Some(override_home) = env_dir("AICHV_HOME") {
+    if let Some(override_home) = env_dir("ACLIV_HOME") {
         return override_home;
     }
 
@@ -18,15 +18,15 @@ fn home_dir() -> PathBuf {
 }
 
 fn app_data_dir() -> PathBuf {
-    if let Some(path) = env_dir("AICHV_HOME") {
+    if let Some(path) = env_dir("ACLIV_HOME") {
         return path;
     }
 
     if let Some(path) = dirs::data_local_dir() {
-        return path.join("ai-cli-history-viewer");
+        return path.join("acliv");
     }
 
-    home_dir().join(".ai-cli-history-viewer")
+    home_dir().join(".acliv")
 }
 
 fn normalize_data_dir(path: PathBuf, leaf: &str) -> PathBuf {
@@ -66,23 +66,23 @@ fn resolve_provider_dir(env_name: &str, hidden_dir_name: &str, data_subdir: &str
 }
 
 pub fn get_claude_projects_dir() -> PathBuf {
-    resolve_provider_dir("AICHV_CLAUDE_DIR", ".claude", "projects")
+    resolve_provider_dir("ACLIV_CLAUDE_DIR", ".claude", "projects")
 }
 
 pub fn get_codex_sessions_dir() -> PathBuf {
-    resolve_provider_dir("AICHV_CODEX_DIR", ".codex", "sessions")
+    resolve_provider_dir("ACLIV_CODEX_DIR", ".codex", "sessions")
 }
 
 pub fn get_gemini_tmp_dir() -> PathBuf {
-    resolve_provider_dir("AICHV_GEMINI_DIR", ".gemini", "tmp")
+    resolve_provider_dir("ACLIV_GEMINI_DIR", ".gemini", "tmp")
 }
 
 pub fn get_openclaw_agents_dir() -> PathBuf {
-    resolve_provider_dir("AICHV_OPENCLAW_DIR", ".openclaw", "agents")
+    resolve_provider_dir("ACLIV_OPENCLAW_DIR", ".openclaw", "agents")
 }
 
 pub fn get_opencode_storage_dir() -> PathBuf {
-    if let Some(path) = env_dir("AICHV_OPENCODE_DIR") {
+    if let Some(path) = env_dir("ACLIV_OPENCODE_DIR") {
         return normalize_data_dir(path, "storage");
     }
 
@@ -111,7 +111,7 @@ pub fn get_provider_base_dir(provider_id: &str) -> Result<PathBuf, String> {
 }
 
 pub fn get_search_index_dir() -> PathBuf {
-    if let Some(path) = env_dir("AICHV_INDEX_DIR") {
+    if let Some(path) = env_dir("ACLIV_INDEX_DIR") {
         return path;
     }
 

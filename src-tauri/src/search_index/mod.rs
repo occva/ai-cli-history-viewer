@@ -418,19 +418,19 @@ mod tests {
             let source_path = claude_project.join("session-claude-1.jsonl");
 
             let env = EnvGuard::set_many(&[
-                ("AICHV_INDEX_DIR", index_dir.to_string_lossy().as_ref()),
+                ("ACLIV_INDEX_DIR", index_dir.to_string_lossy().as_ref()),
                 (
-                    "AICHV_CLAUDE_DIR",
+                    "ACLIV_CLAUDE_DIR",
                     claude_projects.to_string_lossy().as_ref(),
                 ),
-                ("AICHV_CODEX_DIR", codex_sessions.to_string_lossy().as_ref()),
-                ("AICHV_GEMINI_DIR", gemini_tmp.to_string_lossy().as_ref()),
+                ("ACLIV_CODEX_DIR", codex_sessions.to_string_lossy().as_ref()),
+                ("ACLIV_GEMINI_DIR", gemini_tmp.to_string_lossy().as_ref()),
                 (
-                    "AICHV_OPENCLAW_DIR",
+                    "ACLIV_OPENCLAW_DIR",
                     openclaw_agents.to_string_lossy().as_ref(),
                 ),
                 (
-                    "AICHV_OPENCODE_DIR",
+                    "ACLIV_OPENCODE_DIR",
                     opencode_storage.to_string_lossy().as_ref(),
                 ),
             ]);

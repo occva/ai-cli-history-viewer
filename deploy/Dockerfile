@@ -23,7 +23,7 @@ ENV CARGO_NET_RETRY=8 \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 COPY src-tauri ./src-tauri
-RUN cargo build --release --jobs 1 --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin aichv-web
+RUN cargo build --release --jobs 1 --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
@@ -33,26 +33,26 @@ RUN apk add --no-cache ca-certificates curl su-exec \
     && adduser -u 1000 -S -G app app
 
 COPY --from=frontend-builder --chown=app:app /app/dist /app/dist
-COPY --from=backend-builder --chown=app:app /app/src-tauri/target/release/aichv-web /app/aichv-web
+COPY --from=backend-builder --chown=app:app /app/src-tauri/target/release/acliv-web /app/acliv-web
 COPY --chown=app:app deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN chmod +x /app/docker-entrypoint.sh \
     && mkdir -p /app/data
 
-ENV AICHV_HOST=0.0.0.0
-ENV AICHV_PORT=17860
-ENV AICHV_HOME=/app/data
-ENV AICHV_CLAUDE_DIR=/host-data/claude/projects
-ENV AICHV_CODEX_DIR=/host-data/codex/sessions
-ENV AICHV_GEMINI_DIR=/host-data/gemini/tmp
-ENV AICHV_OPENCLAW_DIR=/host-data/openclaw/agents
-ENV AICHV_OPENCODE_DIR=/host-data/opencode/storage
-ENV AICHV_RUN_AS_ROOT=0
+ENV ACLIV_HOST=0.0.0.0
+ENV ACLIV_PORT=17860
+ENV ACLIV_HOME=/app/data
+ENV ACLIV_CLAUDE_DIR=/host-data/claude/projects
+ENV ACLIV_CODEX_DIR=/host-data/codex/sessions
+ENV ACLIV_GEMINI_DIR=/host-data/gemini/tmp
+ENV ACLIV_OPENCLAW_DIR=/host-data/openclaw/agents
+ENV ACLIV_OPENCODE_DIR=/host-data/opencode/storage
+ENV ACLIV_RUN_AS_ROOT=0
 
 EXPOSE 17860
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS "http://127.0.0.1:${AICHV_PORT:-17860}/api/health" >/dev/null || exit 1
+    CMD curl -fsS "http://127.0.0.1:${ACLIV_PORT:-17860}/api/health" >/dev/null || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["/app/aichv-web"]
+CMD ["/app/acliv-web"]

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${AICHV_REPO_URL:-https://github.com/occva/ai-cli-history-viewer.git}"
-BRANCH="${AICHV_REPO_BRANCH:-master}"
+REPO_URL="${ACLIV_REPO_URL:-https://github.com/occva/acliv.git}"
+BRANCH="${ACLIV_REPO_BRANCH:-master}"
 
 if [[ "${EUID}" -eq 0 ]]; then
-  INSTALL_DIR="${AICHV_INSTALL_DIR:-/opt/ai-cli-history-viewer}"
+  INSTALL_DIR="${ACLIV_INSTALL_DIR:-/opt/acliv}"
 else
-  INSTALL_DIR="${AICHV_INSTALL_DIR:-$HOME/ai-cli-history-viewer}"
+  INSTALL_DIR="${ACLIV_INSTALL_DIR:-$HOME/acliv}"
 fi
 
 log_info() {
@@ -33,6 +33,7 @@ need_cmd() {
 ensure_dependencies() {
   need_cmd git
   need_cmd docker
+  need_cmd curl
   if ! docker compose version >/dev/null 2>&1; then
     log_error "Docker Compose v2 is required (docker compose)."
     exit 1
@@ -61,7 +62,7 @@ generate_secret() {
     head -c 32 /dev/urandom | xxd -p -c 32
     return
   fi
-  log_error "openssl or xxd is required to generate AICHV_TOKEN."
+  log_error "openssl or xxd is required to generate ACLIV_TOKEN."
   exit 1
 }
 
@@ -92,8 +93,8 @@ has_session_data() {
 }
 
 resolve_host_home_default() {
-  if [[ -n "${AICHV_HOST_HOME:-}" ]]; then
-    echo "$AICHV_HOST_HOME"
+  if [[ -n "${ACLIV_HOST_HOME:-}" ]]; then
+    echo "$ACLIV_HOST_HOME"
     return
   fi
 
@@ -126,31 +127,12 @@ resolve_host_home_default() {
   fi
 }
 
-resolve_access_host() {
-  if [[ -n "${AICHV_ACCESS_HOST:-}" ]]; then
-    echo "$AICHV_ACCESS_HOST"
-    return
+resolve_public_ip() {
+  local public_ip
+  public_ip="$(curl -fsSL --connect-timeout 5 --max-time 10 ifconfig.me/ip 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -n "$public_ip" ]]; then
+    echo "$public_ip"
   fi
-
-  if command -v hostname >/dev/null 2>&1; then
-    local lan_ip
-    lan_ip="$(hostname -I 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i !~ /^127\./) {print $i; exit}}')"
-    if [[ -n "$lan_ip" ]]; then
-      echo "$lan_ip"
-      return
-    fi
-  fi
-
-  if command -v ip >/dev/null 2>&1; then
-    local route_ip
-    route_ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
-    if [[ -n "$route_ip" ]]; then
-      echo "$route_ip"
-      return
-    fi
-  fi
-
-  echo "localhost"
 }
 
 provider_dir_or_empty() {
@@ -170,32 +152,32 @@ prepare_env() {
   fi
 
   local token
-  token="$(get_env_value AICHV_TOKEN)"
+  token="$(get_env_value ACLIV_TOKEN)"
   if [[ -z "$token" ]]; then
     token="$(generate_secret)"
-    set_env_value "AICHV_TOKEN" "$token"
+    set_env_value "ACLIV_TOKEN" "$token"
   fi
 
   local image
-  image="$(get_env_value AICHV_IMAGE)"
+  image="$(get_env_value ACLIV_IMAGE)"
   if [[ -z "$image" ]]; then
-    image="${AICHV_IMAGE:-ghcr.io/occva/ai-cli-history-viewer}"
-    set_env_value "AICHV_IMAGE" "$image"
+    image="${ACLIV_IMAGE:-ghcr.io/occva/acliv}"
+    set_env_value "ACLIV_IMAGE" "$image"
   fi
 
   local version
-  version="$(get_env_value AICHV_VERSION)"
+  version="$(get_env_value ACLIV_VERSION)"
   if [[ -z "$version" ]]; then
-    version="${AICHV_VERSION:-latest}"
-    set_env_value "AICHV_VERSION" "$version"
+    version="${ACLIV_VERSION:-latest}"
+    set_env_value "ACLIV_VERSION" "$version"
   fi
 
   local host_home
   host_home="$(get_env_value HOST_HOME)"
   local auto_home
   auto_home="$(resolve_host_home_default)"
-  if [[ -n "${AICHV_HOST_HOME:-}" ]]; then
-    host_home="$AICHV_HOST_HOME"
+  if [[ -n "${ACLIV_HOST_HOME:-}" ]]; then
+    host_home="$ACLIV_HOST_HOME"
   elif [[ -z "$host_home" || "$host_home" == "/home/your-user" ]]; then
     host_home="$auto_home"
   elif [[ "$host_home" != "$auto_home" ]] \
@@ -235,24 +217,24 @@ prepare_env() {
   fi
 
   local run_as_root
-  run_as_root="$(get_env_value AICHV_RUN_AS_ROOT)"
+  run_as_root="$(get_env_value ACLIV_RUN_AS_ROOT)"
   if [[ -z "$run_as_root" ]]; then
     run_as_root="0"
     for path in "$claude_dir" "$codex_dir" "$gemini_dir" "$openclaw_dir" "$opencode_dir"; do
       if [[ -n "$path" && "$path" == /root/* ]]; then
         run_as_root="1"
-        log_info "Detected root-owned provider directory $path, enabling AICHV_RUN_AS_ROOT=1."
+        log_info "Detected root-owned provider directory $path, enabling ACLIV_RUN_AS_ROOT=1."
         break
       fi
     done
-    set_env_value "AICHV_RUN_AS_ROOT" "$run_as_root"
+    set_env_value "ACLIV_RUN_AS_ROOT" "$run_as_root"
   fi
 
   local port
-  port="$(get_env_value AICHV_PORT)"
+  port="$(get_env_value ACLIV_PORT)"
   if [[ -z "$port" ]]; then
     port="17860"
-    set_env_value "AICHV_PORT" "$port"
+    set_env_value "ACLIV_PORT" "$port"
   fi
 
   chmod 600 .env
@@ -270,17 +252,19 @@ start_service() {
   cd "$INSTALL_DIR/deploy"
   compose_up_image
 
-  local token port access_host
-  token="$(get_env_value AICHV_TOKEN)"
-  port="$(get_env_value AICHV_PORT)"
-  access_host="$(resolve_access_host)"
+  local token port public_ip
+  token="$(get_env_value ACLIV_TOKEN)"
+  port="$(get_env_value ACLIV_PORT)"
+  public_ip="$(resolve_public_ip)"
 
   echo ""
   echo "Installation complete."
-  echo "Access URL:"
-  echo "http://${access_host}:${port}/?token=${token}"
-  if [[ "$access_host" != "localhost" ]]; then
-    echo "Local URL: http://localhost:${port}/?token=${token}"
+  if [[ -n "$public_ip" ]]; then
+    echo "Access URL:"
+    echo "http://${public_ip}:${port}/?token=${token}"
+  else
+    echo "未获取到公网 IP，请手动输入你的 IP 后拼接以下地址："
+    echo "${port}/?token=${token}"
   fi
   echo ""
 }

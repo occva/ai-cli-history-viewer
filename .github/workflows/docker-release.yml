@@ -33,7 +33,7 @@ jobs:
         id: prep
         shell: bash
         run: |
-          image="ghcr.io/occva/ai-cli-history-viewer"
+          image="ghcr.io/occva/acliv"
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
             tags="${image}:${version},${image}:latest"

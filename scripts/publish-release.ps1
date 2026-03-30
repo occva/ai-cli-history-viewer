@@ -28,9 +28,9 @@ function Invoke-Step {
 
 $tag = "v$Version"
 $releaseDir = Join-Path $RepoRoot "release\$tag"
-$desktopExe = Join-Path $releaseDir "ai-cli-history-viewer-$tag.exe"
-$setupExe = Join-Path $releaseDir "ai-cli-history-viewer-$tag-x64-setup.exe"
-$msiFile = Join-Path $releaseDir "ai-cli-history-viewer-$tag-x64-en-us.msi"
+$desktopExe = Join-Path $releaseDir "acliv-$tag.exe"
+$setupExe = Join-Path $releaseDir "acliv-$tag-x64-setup.exe"
+$msiFile = Join-Path $releaseDir "acliv-$tag-x64-en-us.msi"
 $releaseNotes = Join-Path $releaseDir "release-notes-$tag.md"
 
 Invoke-Step -Name 'verify gh auth' -Action {
@@ -62,7 +62,7 @@ Invoke-Step -Name 'push tag' -Action {
 }
 
 $releaseExists = $false
-$releaseTags = gh release list --repo occva/ai-cli-history-viewer --limit 100 --json tagName --jq ".[].tagName"
+$releaseTags = gh release list --repo occva/acliv --limit 100 --json tagName --jq ".[].tagName"
 if ($LASTEXITCODE -ne 0) {
   throw "Failed to inspect existing GitHub releases."
 }
@@ -76,7 +76,7 @@ if (-not $releaseExists) {
       $desktopExe `
       $setupExe `
       $msiFile `
-      --repo occva/ai-cli-history-viewer `
+      --repo occva/acliv `
       --notes-file $releaseNotes `
       --title $tag
   }
@@ -87,7 +87,7 @@ else {
       $desktopExe `
       $setupExe `
       $msiFile `
-      --repo occva/ai-cli-history-viewer `
+      --repo occva/acliv `
       --clobber
   }
 }

@@ -143,16 +143,16 @@ struct HealthResponse {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let host = env::var("AICHV_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = env::var("AICHV_PORT")
+    let host = env::var("ACLIV_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let port = env::var("ACLIV_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(17860);
-    let token = env::var("AICHV_TOKEN")
+    let token = env::var("ACLIV_TOKEN")
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
-        .ok_or("Missing required env: AICHV_TOKEN")?;
+        .ok_or("Missing required env: ACLIV_TOKEN")?;
 
     let socket: SocketAddr = format!("{host}:{port}")
         .parse()
@@ -167,7 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
-    println!("AI CLI History Viewer (Web)");
+    println!("ACLIV (Web)");
     println!("Listening on: http://{host}:{port}");
     println!("Frontend dist: {}", frontend_dist.display());
 
@@ -214,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn resolve_frontend_dist() -> PathBuf {
-    if let Ok(value) = env::var("AICHV_FRONTEND_DIST") {
+    if let Ok(value) = env::var("ACLIV_FRONTEND_DIST") {
         let path = Path::new(value.trim());
         if !value.trim().is_empty() {
             return path.to_path_buf();

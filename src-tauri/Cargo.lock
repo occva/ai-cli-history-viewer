@@ -3,6 +3,27 @@
 version = 3
 
 [[package]]
+name = "acliv"
+version = "1.0.5"
+dependencies = [
+ "axum",
+ "chrono",
+ "dirs 5.0.1",
+ "log",
+ "notify",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tempfile",
+ "tokio",
+ "tower-http 0.5.2",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -26,27 +47,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "ai-cli-history-viewer"
-version = "1.0.4"
-dependencies = [
- "axum",
- "chrono",
- "dirs 5.0.1",
- "log",
- "notify",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tempfile",
- "tokio",
- "tower-http 0.5.2",
 ]
 
 [[package]]
