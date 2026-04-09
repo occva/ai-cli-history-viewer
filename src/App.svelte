@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import * as api from './lib/api';
   import Markdown from './lib/components/Markdown.svelte';
@@ -18,6 +18,7 @@
     search: `<path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>`,
     empty_box: `<path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25V2.75C0 1.784.784 1 1.75 1ZM1.5 2.75v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>`,
     database: `<path d="M8 1.25c-3.59 0-5.75 1.16-5.75 2.5v8.5c0 1.34 2.16 2.5 5.75 2.5s5.75-1.16 5.75-2.5v-8.5c0-1.34-2.16-2.5-5.75-2.5Zm0 1.5c2.91 0 4.25.84 4.25 1s-1.34 1-4.25 1-4.25-.84-4.25-1 1.34-1 4.25-1Zm-4.25 3.1c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1s-4.25-.84-4.25-1v-1.4Zm0 3.5c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1s-4.25-.84-4.25-1v-1.4Zm4.25 3.9c-2.91 0-4.25-.84-4.25-1v-1.4c1.11.63 2.74.9 4.25.9s3.14-.27 4.25-.9v1.4c0 .16-1.34 1-4.25 1Z"/>`,
+    refresh: `<path fill-rule="evenodd" d="M8 2.25a5.75 5.75 0 1 0 5.527 7.344.75.75 0 0 1 1.444.402A7.25 7.25 0 1 1 13.11 3.57v-1.32a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5h1.717A5.715 5.715 0 0 0 8 2.25Z"/>`,
     back: `<svg viewBox="0 0 1024 1024" width="14" height="14" fill="currentColor"><path d="M604.8 407.68H158.72L375.68 198.4c17.92-17.28 17.92-46.08 0-63.36a48.384 48.384 0 0 0-65.92 0L13.44 421.12c-17.92 17.28-17.92 46.08 0 63.36l296.32 286.08c17.92 17.28 47.36 17.28 65.92 0 17.92-17.28 17.92-46.08 0-63.36L158.72 497.92h446.08c179.84 0 325.76 140.8 325.76 314.88v44.8c0 24.96 21.12 44.8 46.72 44.8 25.6 0 46.72-20.48 46.72-44.8v-44.8c0-224-187.52-405.12-419.2-405.12z"></path></svg>`,
     dropdown_arrow: `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M12.78 6.22a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L3.22 7.28a.75.75 0 0 1 1.06-1.06L8 9.94l3.72-3.72a.75.75 0 0 1 1.06 0Z"></path></svg>`
   };
@@ -105,9 +106,21 @@
   type SearchSort = 'relevance' | 'recent';
   type IndexModalTab = 'overview' | 'sessions';
   type IndexLibraryItem = api.IndexedSession;
+  type RouteMode = 'push' | 'replace' | 'none';
+  interface SelectConversationOptions {
+      routeMode?: RouteMode;
+      restoreScroll?: boolean;
+      scrollToBottom?: boolean;
+  }
+  interface DetailScrollState {
+      top: number;
+      atBottom: boolean;
+  }
   const INDEX_LIBRARY_PAGE_SIZE = 50;
   const AUTO_SYNC_INTERVAL_WEB_MS = 120000;
   const AUTO_SYNC_INTERVAL_DESKTOP_MS = 300000;
+  const DETAIL_SCROLL_STORAGE_PREFIX = 'acliv:detail-scroll:';
+  const DETAIL_SCROLL_BOTTOM_THRESHOLD = 40;
 
   // ---- 适配函数 ----
   const GEMINI_GROUP = 'Gemini Sessions';
@@ -213,7 +226,7 @@
       currentConversation = null;
       conversations = [];
     }
-    if (!currentProject && projs.length > 0) selectProject(projs[0].name);
+    if (!currentProject && projs.length > 0) selectProject(projs[0].name, false);
   }
 
   // --- State (Svelte 5 Runes) ---
@@ -275,6 +288,13 @@
   let toastMessage = $state('History Updated');
   let deleteTarget = $state<SessionMeta | null>(null);
   let isProjectMenuOpen = $state(false);
+  let isConversationRefreshing = $state(false);
+  let authInitialized = $state(!isWebMode);
+  let isAuthenticated = $state(!isWebMode);
+  let loginUsername = $state('admin');
+  let loginPassword = $state('');
+  let loginError = $state('');
+  let isLoggingIn = $state(false);
 
   // Timers
   let autoRefreshInterval: any;
@@ -284,18 +304,229 @@
   let watcherReloadRunning = false;
   let watcherReloadQueued = false;
   let pendingWatcherSources = new Map<string, api.IndexedSourceRef>();
+  let conversationDetailElement = $state<HTMLDivElement | null>(null);
 
-  function applyWebTokenFromQuery() {
+  async function refreshWebAuthState(): Promise<boolean> {
+    if (!isWebMode) return true;
+
+    try {
+      const session = await api.verifyWebAuth();
+      authInitialized = true;
+      isAuthenticated = true;
+      loginUsername = session.username || loginUsername;
+      loginError = '';
+      return true;
+    } catch (e) {
+      api.clearWebToken();
+      authInitialized = true;
+      isAuthenticated = false;
+      if (e instanceof Error && e.message !== 'Missing web token. Login required.') {
+        loginError = '';
+      }
+      return false;
+    }
+  }
+
+  async function bootstrapAuthenticatedApp() {
+    await loadData();
+    await syncConversationFromRoute();
+    void bootstrapSearchIndex();
+  }
+
+  async function handleLoginSubmit() {
+    if (!isWebMode || isLoggingIn) return;
+
+    const username = loginUsername.trim();
+    const password = loginPassword.trim();
+    if (!username || !password) {
+      loginError = '请输入用户名和密码';
+      return;
+    }
+
+    isLoggingIn = true;
+    loginError = '';
+    try {
+      const result = await api.loginWeb(username, password);
+      api.setWebToken(result.token);
+      authInitialized = true;
+      isAuthenticated = true;
+      loginUsername = result.username;
+      loginPassword = '';
+      await bootstrapAuthenticatedApp();
+    } catch (e) {
+      api.clearWebToken();
+      isAuthenticated = false;
+      loginError = e instanceof Error ? e.message : '登录失败';
+    } finally {
+      isLoggingIn = false;
+    }
+  }
+
+  function routeSessionId(): string | null {
+    if (!isWebMode) return null;
+
+    const pathname = decodeURIComponent(window.location.pathname || '/');
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length !== 1) return null;
+
+    return segments[0]?.trim() || null;
+  }
+
+  function updateConversationRoute(sessionId: string | null, mode: Exclude<RouteMode, 'none'> = 'push') {
     if (!isWebMode) return;
 
     const url = new URL(window.location.href);
-    const token = url.searchParams.get('token')?.trim();
-    if (!token) return;
+    url.pathname = sessionId ? `/${encodeURIComponent(sessionId)}` : '/';
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl === currentUrl) return;
 
-    localStorage.setItem(api.WEB_TOKEN_STORAGE_KEY, token);
-    url.searchParams.delete('token');
-    const normalized = `${url.pathname}${url.search}${url.hash}`;
-    window.history.replaceState({}, '', normalized || '/');
+    if (mode === 'replace') {
+      window.history.replaceState({}, '', nextUrl);
+    } else {
+      window.history.pushState({}, '', nextUrl);
+    }
+  }
+
+  function detailScrollStorageKey(providerId: string, sessionId: string): string {
+    return `${DETAIL_SCROLL_STORAGE_PREFIX}${providerId}:${sessionId}`;
+  }
+
+  function isScrolledNearBottom(element: HTMLElement): boolean {
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= DETAIL_SCROLL_BOTTOM_THRESHOLD;
+  }
+
+  function currentConversationTarget(): SessionMeta | null {
+    return currentConversation
+      ? getSessionById(currentConversation.session_id, currentConversation.source_type)
+      : null;
+  }
+
+  function persistConversationScrollState(target: SessionMeta | null = currentConversationTarget()) {
+    if (!target || !conversationDetailElement) return;
+
+    const payload: DetailScrollState = {
+      top: conversationDetailElement.scrollTop,
+      atBottom: isScrolledNearBottom(conversationDetailElement),
+    };
+
+    try {
+      sessionStorage.setItem(
+        detailScrollStorageKey(target.providerId, target.sessionId),
+        JSON.stringify(payload),
+      );
+    } catch (e) {
+      console.error('Failed to persist conversation scroll state:', e);
+    }
+  }
+
+  function readConversationScrollState(target: SessionMeta): DetailScrollState | null {
+    try {
+      const raw = sessionStorage.getItem(detailScrollStorageKey(target.providerId, target.sessionId));
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as Partial<DetailScrollState>;
+      if (typeof parsed.top !== 'number' || typeof parsed.atBottom !== 'boolean') {
+        return null;
+      }
+
+      return {
+        top: parsed.top,
+        atBottom: parsed.atBottom,
+      };
+    } catch (e) {
+      console.error('Failed to read conversation scroll state:', e);
+      return null;
+    }
+  }
+
+  async function restoreConversationViewport(
+    target: SessionMeta,
+    options: { restoreScroll: boolean; scrollToBottom: boolean; highlightSearchMatch: boolean },
+  ) {
+    await tick();
+
+    if (!conversationDetailElement) return;
+
+    if (options.highlightSearchMatch) {
+      scrollActiveSearchMatchIntoView();
+      return;
+    }
+
+    if (options.scrollToBottom) {
+      conversationDetailElement.scrollTo({
+        top: conversationDetailElement.scrollHeight,
+        behavior: 'auto',
+      });
+      persistConversationScrollState(target);
+      return;
+    }
+
+    if (!options.restoreScroll) return;
+
+    const saved = readConversationScrollState(target);
+    if (!saved) return;
+
+    const maxScrollTop = Math.max(
+      0,
+      conversationDetailElement.scrollHeight - conversationDetailElement.clientHeight,
+    );
+    conversationDetailElement.scrollTop = saved.atBottom
+      ? maxScrollTop
+      : Math.min(Math.max(saved.top, 0), maxScrollTop);
+  }
+
+  function handleConversationDetailScroll() {
+    if (currentView !== 'detail') return;
+    persistConversationScrollState();
+  }
+
+  function syncConversationContext(target: SessionMeta) {
+    if (currentSource !== target.providerId) {
+      currentSource = target.providerId;
+      localStorage.setItem('source', target.providerId);
+    }
+
+    currentProject = sessionDir(target);
+    refreshFromSessions();
+    conversations = currentProject
+      ? buildConversations(allSessions, currentSource, currentProject)
+      : [];
+  }
+
+  function goToConversationList(routeMode: RouteMode = isWebMode ? 'push' : 'none') {
+    persistConversationScrollState();
+    isProjectMenuOpen = false;
+    activeSearchMatch = null;
+    currentView = 'list';
+
+    if (routeMode !== 'none') {
+      updateConversationRoute(null, routeMode);
+    }
+  }
+
+  async function syncConversationFromRoute() {
+    const sessionId = routeSessionId();
+    if (!sessionId) {
+      goToConversationList('none');
+      return;
+    }
+
+    const target = getSessionById(sessionId);
+    if (!target) {
+      currentConversation = null;
+      goToConversationList('replace');
+      return;
+    }
+
+    await selectConversation(target.sessionId, target.providerId, null, {
+      routeMode: 'none',
+      restoreScroll: true,
+    });
+  }
+
+  function handleBrowserPopState() {
+    void syncConversationFromRoute();
   }
 
   async function subscribeSearchIndexEvents() {
@@ -457,10 +688,13 @@
 
     if (currentSessionKey && changedKeys.has(currentSessionKey)) {
       if (replacementKeys.has(currentSessionKey) && currentConversation) {
-        await selectConversation(currentConversation.session_id, currentConversation.source_type);
+        await selectConversation(currentConversation.session_id, currentConversation.source_type, null, {
+          routeMode: 'none',
+          restoreScroll: true,
+        });
       } else {
         currentConversation = null;
-        currentView = 'list';
+        goToConversationList('replace');
       }
     }
 
@@ -521,10 +755,15 @@
   }
 
   onMount(async () => {
-    applyWebTokenFromQuery();
     setTheme(theme);
-    await loadData();
-    void bootstrapSearchIndex();
+    if (isWebMode) {
+      await refreshWebAuthState();
+      if (isAuthenticated) {
+        await bootstrapAuthenticatedApp();
+      }
+    } else {
+      await bootstrapAuthenticatedApp();
+    }
     await subscribeSearchIndexEvents();
     autoRefreshInterval = setInterval(
       silentRefresh,
@@ -532,6 +771,9 @@
     );
     window.addEventListener('keydown', handleGlobalKeydown);
     window.addEventListener('click', handleWindowClick);
+    if (isWebMode) {
+      window.addEventListener('popstate', handleBrowserPopState);
+    }
   });
 
   onDestroy(() => {
@@ -545,6 +787,9 @@
     searchIndexEventUnsubscribers = [];
     window.removeEventListener('keydown', handleGlobalKeydown);
     window.removeEventListener('click', handleWindowClick);
+    if (isWebMode) {
+      window.removeEventListener('popstate', handleBrowserPopState);
+    }
   });
 
   function scheduleWatcherReload(changedSources: api.IndexedSourceRef[] = []) {
@@ -735,6 +980,9 @@
         const sessions = await loadSessionInventory(searchIndexReady);
         applyLoadedSessions(sessions);
     } catch (e) {
+        if (handleWebUnauthorized(e)) {
+            return;
+        }
         console.error("Failed to load data:", e);
         const message = e instanceof Error ? e.message : 'Failed to load data';
         showFeedback(message, 'error');
@@ -743,6 +991,7 @@
     }
   }
   async function silentRefresh() {
+      if (isWebMode && !isAuthenticated) return;
       if (isLoading || isRefreshing) return;
       isRefreshing = true;
       toastType = 'syncing';
@@ -766,6 +1015,11 @@
           showToast = false;
           isRefreshing = false;
       } catch(e) { 
+          if (handleWebUnauthorized(e)) {
+              showToast = false;
+              isRefreshing = false;
+              return;
+          }
           console.error("Silent refresh failed:", e); 
           showToast = false;
           isRefreshing = false;
@@ -803,7 +1057,7 @@
           const deletedProject = sessionDir(deleteTarget);
           deleteTarget = null;
           currentConversation = null;
-          currentView = 'list';
+          goToConversationList('replace');
 
           const sessions = await loadSessionInventory(searchIndexReady);
           await refreshSearchIndexStatus();
@@ -834,10 +1088,15 @@
           isDeleting = false;
       }
   }
-  function selectProject(name: string) {
+  function selectProject(name: string, clearRoute = true) {
     currentProject = name;
     conversations = buildConversations(allSessions, currentSource, name);
-    currentView = 'list';
+    if (clearRoute) {
+      goToConversationList('replace');
+    } else {
+      currentView = 'list';
+      activeSearchMatch = null;
+    }
     void warmupMessageCounts(name);
   }
 
@@ -848,6 +1107,24 @@
       setTimeout(() => {
           showToast = false;
       }, 2500);
+  }
+
+  function handleWebUnauthorized(error: unknown): boolean {
+      if (!isWebMode) return false;
+
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== 'Unauthorized' && message !== 'Missing web token. Login required.') {
+          return false;
+      }
+
+      api.clearWebToken();
+      authInitialized = true;
+      isAuthenticated = false;
+      loginPassword = '';
+      loginError = '登录已失效，请重新登录';
+      currentConversation = null;
+      currentView = 'list';
+      return true;
   }
 
   async function copyText(text: string, message: string) {
@@ -1094,10 +1371,17 @@
       }));
   }
 
-  async function selectConversation(sessionId: string, sourceType?: string, searchMatch?: SearchResultLocal | null) {
-      if (!currentProject) return;
+  async function selectConversation(
+      sessionId: string,
+      sourceType?: string,
+      searchMatch?: SearchResultLocal | null,
+      options: SelectConversationOptions = {},
+  ) {
       const target = allSessions.find(s => s.sessionId === sessionId && (!sourceType || s.providerId === sourceType));
       if (!target) return;
+
+      syncConversationContext(target);
+
       const rawMsgs = await loadConversationMessages(target);
       messageCountCache = {
         ...messageCountCache,
@@ -1134,8 +1418,120 @@
           : null;
       isProjectMenuOpen = false;
       currentView = 'detail';
-      if (canHighlight) {
-          scrollActiveSearchMatchIntoView();
+
+      const routeMode = options.routeMode ?? (isWebMode ? 'push' : 'none');
+      if (routeMode !== 'none') {
+          updateConversationRoute(target.sessionId, routeMode);
+      }
+
+      await restoreConversationViewport(target, {
+          restoreScroll: options.restoreScroll ?? !canHighlight,
+          scrollToBottom: options.scrollToBottom ?? false,
+          highlightSearchMatch: canHighlight,
+      });
+  }
+
+  async function refreshCurrentConversation() {
+      const currentTarget = currentConversationTarget();
+      if (!currentTarget?.sourcePath || isConversationRefreshing) return;
+
+      persistConversationScrollState(currentTarget);
+      const keepBottomPinned = conversationDetailElement
+          ? isScrolledNearBottom(conversationDetailElement)
+          : false;
+
+      isConversationRefreshing = true;
+      toastType = 'syncing';
+      toastMessage = 'Refreshing conversation...';
+      showToast = true;
+      let abortedForUnauthorized = false;
+
+      try {
+          const raw = await api.getSessionMessages(currentTarget.providerId, currentTarget.sourcePath);
+          const latestMessages: ConversationMessage[] = raw.map((msg, index) => ({
+              role: msg.role,
+              kind: msg.kind,
+              name: msg.name,
+              callId: msg.callId,
+              content: msg.content,
+              ts: msg.ts,
+              seq: index,
+          }));
+
+          messageCountCache = {
+              ...messageCountCache,
+              [sessionCacheKey(currentTarget)]: latestMessages.length,
+          };
+
+          const latestTimestamp = latestMessages.length > 0
+              ? latestMessages[latestMessages.length - 1].ts
+              : undefined;
+
+          allSessions = allSessions
+              .map(session =>
+                  session.sessionId === currentTarget.sessionId && session.providerId === currentTarget.providerId
+                      ? {
+                          ...session,
+                          lastActiveAt: latestTimestamp ?? session.lastActiveAt,
+                        }
+                      : session,
+              )
+              .sort((a, b) => (b.lastActiveAt ?? b.createdAt ?? 0) - (a.lastActiveAt ?? a.createdAt ?? 0));
+
+          const convLike = {
+              session_id: currentTarget.sessionId,
+              project_path: currentTarget.projectDir ?? '',
+              source_type: currentTarget.providerId,
+              title: sessionTitle(currentTarget),
+              timestamp: formatTimestamp(latestTimestamp ?? currentTarget.lastActiveAt ?? currentTarget.createdAt),
+              messages: latestMessages.map(message => ({
+                  role: message.role,
+                  kind: message.kind,
+                  name: message.name,
+                  callId: message.callId,
+                  content: message.content,
+                  timestamp: formatTimestamp(message.ts),
+                  seq: message.seq,
+              })),
+          };
+
+          currentConversation = transformConversation(convLike as any);
+          conversations = currentProject
+              ? buildConversations(allSessions, currentSource, currentProject)
+              : conversations;
+          stats = {
+              projects_count: projects.length,
+              conversations_count: allSessions.filter(s => s.providerId === currentSource).length,
+              messages_count: allSessions
+                  .filter(s => s.providerId === currentSource)
+                  .reduce((sum, s) => sum + sessionMessageCount(s), 0),
+          };
+
+          await restoreConversationViewport(currentTarget, {
+              restoreScroll: !keepBottomPinned,
+              scrollToBottom: keepBottomPinned,
+              highlightSearchMatch: false,
+          });
+
+          toastType = 'success';
+          toastMessage = 'Conversation refreshed';
+      } catch (e) {
+          if (handleWebUnauthorized(e)) {
+              abortedForUnauthorized = true;
+              showToast = false;
+              return;
+          }
+          console.error('Failed to refresh conversation:', e);
+          toastType = 'error';
+          toastMessage = 'Conversation refresh failed';
+      } finally {
+          if (!abortedForUnauthorized) {
+              showToast = true;
+              setTimeout(() => {
+                  showToast = false;
+              }, 2500);
+          }
+          isConversationRefreshing = false;
       }
   }
 
@@ -1162,6 +1558,7 @@
       isProjectMenuOpen = false;
       currentProject = null;
       currentConversation = null;
+      goToConversationList('replace');
       refreshFromSessions();
   }
   function buildMetadataSearchResults(query: string, source = currentSource): SearchResultLocal[] {
@@ -1387,7 +1784,7 @@
           if (isSearchModalOpen) closeSearch();
           else if (isIndexModalOpen) closeIndexModal();
           else if (isProjectMenuOpen) isProjectMenuOpen = false;
-          else if (currentView === 'detail') currentView = 'list';
+          else if (currentView === 'detail') goToConversationList();
       }
       
       if (!isSearchModalOpen && !isIndexModalOpen && currentView === 'list' && projects.length > 0) {
@@ -1519,6 +1916,45 @@
 
 </script>
 
+{#if isWebMode && !authInitialized}
+<div class="auth-shell">
+  <div class="auth-card auth-card-loading">
+    <div class="auth-badge">ACLIV Web</div>
+    <h1>验证登录状态</h1>
+    <p>正在检查当前登录状态...</p>
+  </div>
+</div>
+{:else if isWebMode && !isAuthenticated}
+<div class="auth-shell">
+  <button class="action-btn auth-theme-toggle" onclick={toggleTheme} type="button" title="Toggle theme">
+      {#if theme === 'light'}
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z"></path></svg>
+      {:else}
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 0zm0 13a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2A.5.5 0 018 13zM2.343 2.343a.5.5 0 01.707 0l1.414 1.414a.5.5 0 01-.707.707L2.343 3.05a.5.5 0 010-.707zm11.314 8.486a.5.5 0 010 .707l-1.414 1.414a.5.5 0 01-.707-.707l1.414-1.414a.5.5 0 01.707 0zM12.914 2.343a.5.5 0 010 .707l-1.414 1.414a.5.5 0 01-.707-.707l1.414-1.414a.5.5 0 01.707 0zM3.05 12.207a.5.5 0 01.707 0l1.414 1.414a.5.5 0 01-.707.707L3.05 12.914a.5.5 0 010-.707zM13 8a.5.5 0 01.5.5h2a.5.5 0 010-1h-2A.5.5 0 0113 8zM0 8a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2A.5.5 0 010 8z"></path></svg>
+      {/if}
+  </button>
+  <div class="auth-card">
+    <div class="auth-badge">ACLIV Web</div>
+    <h1>登录</h1>
+    <form class="auth-form" onsubmit={(event) => { event.preventDefault(); void handleLoginSubmit(); }}>
+      <label class="auth-field">
+        <span>用户名</span>
+        <input bind:value={loginUsername} type="text" autocomplete="username" placeholder="admin" />
+      </label>
+      <label class="auth-field">
+        <span>密码</span>
+        <input bind:value={loginPassword} type="password" autocomplete="current-password" placeholder="请输入密码" />
+      </label>
+      {#if loginError}
+        <div class="auth-error">{loginError}</div>
+      {/if}
+      <button class="auth-submit" type="submit" disabled={isLoggingIn}>
+        {isLoggingIn ? '登录中...' : '登录'}
+      </button>
+    </form>
+  </div>
+</div>
+{:else}
 <div class="app-container">
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -1605,7 +2041,7 @@
 
      <div class="view" class:active={currentView === 'detail'} id="detailView">
         <div class="view-header">
-             <button class="btn-secondary" id="backBtn" onclick={() => currentView = 'list'} type="button">
+             <button class="btn-secondary" id="backBtn" onclick={() => goToConversationList()} type="button">
                  {@html ICONS.back} Back
              </button>
              <h2>{currentConversation?.title || 'Conversation'}</h2>
@@ -1633,7 +2069,12 @@
                 </div>
             {/if}
         </div>
-        <div class="conversation-detail" id="conversationDetail">
+        <div
+            class="conversation-detail"
+            id="conversationDetail"
+            bind:this={conversationDetailElement}
+            onscroll={handleConversationDetailScroll}
+        >
             {#if currentConversation}
                 <div class="conversation-header">
                     <h3>{currentConversation.title}</h3>
@@ -1772,6 +2213,20 @@
             {/if}
         </div>
      </div>
+
+     {#if currentView === 'detail' && currentConversation}
+        <button
+            class="detail-refresh-fab"
+            type="button"
+            onclick={() => void refreshCurrentConversation()}
+            disabled={isConversationRefreshing}
+            title="刷新当前会话"
+        >
+            <span class="icon-inline" class:fab-icon-spinning={isConversationRefreshing} aria-hidden="true">
+                {@html getIcon('refresh', 16)}
+            </span>
+        </button>
+     {/if}
 
   <div class="refresh-toast" class:show={showToast}>
       <div class="refresh-content" class:syncing={toastType === 'syncing'} class:success={toastType === 'success'} class:error={toastType === 'error'}>
@@ -2103,6 +2558,7 @@
       </div>
   </div>
 </div>
+{/if}
 
 <style>
   /* All styles come from public/css/style.css */

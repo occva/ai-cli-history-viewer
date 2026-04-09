@@ -2,6 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 
 export const WEB_TOKEN_STORAGE_KEY = 'acliv_token';
 
+export interface WebLoginResult {
+    token: string;
+    username: string;
+}
+
+export interface WebAuthSession {
+    username: string;
+}
+
 // ==================== 类型定义 ====================
 
 /** 会话元信息（来自 Rust SessionMeta） */
@@ -204,12 +213,52 @@ function getWebToken(): string {
     return localStorage.getItem(WEB_TOKEN_STORAGE_KEY)?.trim() ?? '';
 }
 
+export function setWebToken(token: string) {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(WEB_TOKEN_STORAGE_KEY, token.trim());
+}
+
+export function clearWebToken() {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(WEB_TOKEN_STORAGE_KEY);
+}
+
 function assertWebToken(): string {
     const token = getWebToken();
     if (!token) {
-        throw new Error('Missing web token. Set ?token=... once, then refresh.');
+        throw new Error('Missing web token. Login required.');
     }
     return token;
+}
+
+async function parseApiResponse<T>(response: Response): Promise<T> {
+    let payload: ApiResponse<T> | null = null;
+    try {
+        payload = await response.json() as ApiResponse<T>;
+    } catch {
+        // keep payload as null and throw fallback message below
+    }
+
+    if (!response.ok || !payload?.ok) {
+        const errorMessage = payload?.error ?? `Request failed: ${response.status}`;
+        throw new Error(errorMessage);
+    }
+
+    return payload.data;
+}
+
+async function fetchPublicApi<T>(path: string, init: RequestInit): Promise<T> {
+    const headers = new Headers(init.headers);
+    if (init.body && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(path, {
+        ...init,
+        headers,
+    });
+
+    return parseApiResponse<T>(response);
 }
 
 async function fetchApi<T>(path: string, init: RequestInit): Promise<T> {
@@ -225,19 +274,30 @@ async function fetchApi<T>(path: string, init: RequestInit): Promise<T> {
         headers,
     });
 
-    let payload: ApiResponse<T> | null = null;
-    try {
-        payload = await response.json() as ApiResponse<T>;
-    } catch {
-        // keep payload as null and throw fallback message below
+    if (response.status === 401) {
+        clearWebToken();
     }
 
-    if (!response.ok || !payload?.ok) {
-        const errorMessage = payload?.error ?? `Request failed: ${response.status}`;
-        throw new Error(errorMessage);
+    return parseApiResponse<T>(response);
+}
+
+export async function loginWeb(username: string, password: string): Promise<WebLoginResult> {
+    if (!isWebMode()) {
+        throw new Error('Not supported outside web mode');
     }
 
-    return payload.data;
+    return fetchPublicApi('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+    });
+}
+
+export async function verifyWebAuth(): Promise<WebAuthSession> {
+    if (!isWebMode()) {
+        throw new Error('Not supported outside web mode');
+    }
+
+    return fetchApi('/api/auth/verify', { method: 'GET' });
 }
 
 const tauriAdapter: BackendAdapter = {
