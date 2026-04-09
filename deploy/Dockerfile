@@ -1,20 +1,27 @@
+# syntax=docker/dockerfile:1.7
+
 ARG NODE_IMAGE=node:20-alpine
 ARG RUST_IMAGE=rust:1.83-alpine3.19
 ARG RUNTIME_IMAGE=alpine:3.19
+ARG CARGO_BUILD_JOBS
 
 FROM ${NODE_IMAGE} AS frontend-builder
 WORKDIR /app
+ENV npm_config_cache=/root/.npm
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 
 COPY index.html svelte.config.js tsconfig.json vite.config.ts ./
 COPY public ./public
 COPY src ./src
 
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    npm run build
 
 FROM ${RUST_IMAGE} AS backend-builder
+ARG CARGO_BUILD_JOBS
 WORKDIR /app
 
 RUN apk add --no-cache build-base musl-dev
@@ -22,8 +29,19 @@ ENV CARGO_NET_RETRY=8 \
     CARGO_HTTP_TIMEOUT=600 \
     CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
+COPY src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/build.rs ./src-tauri/
+RUN mkdir -p /app/src-tauri/src/bin \
+    && printf 'pub fn docker_build_cache_warmup() {}\n' > /app/src-tauri/src/lib.rs \
+    && printf 'fn main() {}\n' > /app/src-tauri/src/main.rs \
+    && printf 'fn main() {}\n' > /app/src-tauri/src/bin/acliv-web.rs
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    sh -ec 'cargo build --locked --release ${CARGO_BUILD_JOBS:+--jobs="$CARGO_BUILD_JOBS"} --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web'
+
 COPY src-tauri ./src-tauri
-RUN cargo build --release --jobs 1 --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    sh -ec 'cargo build --locked --release ${CARGO_BUILD_JOBS:+--jobs="$CARGO_BUILD_JOBS"} --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web'
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
