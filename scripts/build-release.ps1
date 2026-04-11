@@ -144,6 +144,77 @@ function Ensure-NsisOnPath {
   }
 }
 
+function Get-PreviousReleaseTag {
+  param(
+    [string]$CurrentVersion
+  )
+
+  $currentParsedVersion = $null
+  if (-not [Version]::TryParse($CurrentVersion, [ref]$currentParsedVersion)) {
+    throw "Invalid release version: $CurrentVersion"
+  }
+
+  $tags = git tag --list 'v*' --sort=-version:refname
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to inspect git tags for release notes.'
+  }
+
+  foreach ($tag in $tags) {
+    if (-not $tag) {
+      continue
+    }
+
+    $tagVersion = $tag.TrimStart('v')
+    $parsedTagVersion = $null
+    if (-not [Version]::TryParse($tagVersion, [ref]$parsedTagVersion)) {
+      continue
+    }
+    if ($parsedTagVersion -lt $currentParsedVersion) {
+      return $tag
+    }
+  }
+
+  return $null
+}
+
+function Get-ReleaseNotesChanges {
+  param(
+    [string]$CurrentVersion
+  )
+
+  $previousTag = Get-PreviousReleaseTag -CurrentVersion $CurrentVersion
+  $range = if ($previousTag) { "$previousTag..HEAD" } else { 'HEAD' }
+  $subjects = git log $range --pretty=format:%s
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to collect git history for release notes.'
+  }
+
+  $filteredSubjects = @()
+  foreach ($subject in $subjects) {
+    if (-not $subject) {
+      continue
+    }
+    if ($subject -match '^chore\(release\):\s*同步版本号到\s+') {
+      continue
+    }
+    $filteredSubjects += $subject
+  }
+
+  if ($filteredSubjects.Count -eq 0) {
+    return @('- 本版本未记录额外代码变更说明。')
+  }
+
+  return $filteredSubjects | ForEach-Object { "- $_" }
+}
+
+function Get-ReleaseNotesVerification {
+  return @(
+    '- 已执行 `cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web`',
+    '- 已执行 `npm run tauri build`',
+    '- 已生成标准发布产物并收集到 `release/` 目录'
+  )
+}
+
 function Find-SingleFile {
   param(
     [string]$Glob
@@ -220,17 +291,19 @@ Invoke-Step -Name 'collect release artifacts' -Action {
 }
 
 $releaseNotesPath = Join-Path $releaseDir "release-notes-v$Version.md"
-Invoke-Step -Name 'generate release notes stub' -Action {
+Invoke-Step -Name 'generate release notes' -Action {
+  $changes = (Get-ReleaseNotesChanges -CurrentVersion $Version) -join [Environment]::NewLine
+  $verification = (Get-ReleaseNotesVerification) -join [Environment]::NewLine
   $releaseNotes = @"
 # v$Version
 
 ## Changes
 
-- TODO
+$changes
 
 ## Verification
 
-- TODO
+$verification
 "@
   Write-Utf8NoBom -FilePath $releaseNotesPath -Content $releaseNotes
 }
