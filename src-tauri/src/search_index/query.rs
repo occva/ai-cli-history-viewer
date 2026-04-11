@@ -520,7 +520,11 @@ fn search_content_fts(
           src.name,
           sess.provider_session_id,
           sess.source_path,
-          COALESCE(sess.title, sess.summary, sess.provider_session_id),
+          COALESCE(
+            NULLIF(sess.title, ''),
+            NULLIF(proj.display_name, ''),
+            proj.display_path
+          ),
           proj.display_path,
           sess.last_active_at,
           snippet(messages_fts, 0, '<mark>', '</mark>', '…', 20),
@@ -619,7 +623,11 @@ fn search_content_substring(
           src.name,
           sess.provider_session_id,
           sess.source_path,
-          COALESCE(sess.title, sess.summary, sess.provider_session_id),
+          COALESCE(
+            NULLIF(sess.title, ''),
+            NULLIF(proj.display_name, ''),
+            proj.display_path
+          ),
           proj.display_path,
           sess.last_active_at,
           msg.search_text,

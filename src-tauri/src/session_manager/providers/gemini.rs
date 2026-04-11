@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::utils::{log_scan_error, parse_timestamp_to_ms, truncate_summary};
+use super::utils::{log_scan_error, normalize_title_candidate, parse_timestamp_to_ms};
 use crate::paths::get_gemini_tmp_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
 const PROVIDER_ID: &str = "gemini";
@@ -118,17 +118,22 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
     let created_at = value.get("startTime").and_then(parse_timestamp_to_ms);
     let last_active_at = value.get("lastUpdated").and_then(parse_timestamp_to_ms);
 
-    // Derive title from first user message
-    let title = value
+    let summary_title = value
+        .get("summary")
+        .and_then(Value::as_str)
+        .and_then(|summary| normalize_title_candidate(summary, 160));
+
+    let first_user_title = value
         .get("messages")
         .and_then(Value::as_array)
         .and_then(|msgs| {
             msgs.iter()
                 .find(|m| m.get("type").and_then(Value::as_str) == Some("user"))
                 .and_then(|m| m.get("content").and_then(Value::as_str))
-                .filter(|s| !s.trim().is_empty())
-                .map(|s| truncate_summary(s, 160))
+                .and_then(|content| normalize_title_candidate(content, 160))
         });
+
+    let title = summary_title.or(first_user_title);
 
     let source_path = path.to_string_lossy().to_string();
 
@@ -148,4 +153,43 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
         source_path: Some(source_path),
         resume_command: Some(format!("gemini --resume {session_id}")),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn parse_session_prefers_summary_for_title() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("session.json");
+        fs::write(
+            &path,
+            r#"{
+  "sessionId": "827eede4-2d4d-4d9b-900b-ddea7069ffb1",
+  "startTime": "2025-12-20T10:07:54.366Z",
+  "lastUpdated": "2025-12-20T13:48:46.055Z",
+  "summary": "Summarize video transcript and save to file.",
+  "messages": [
+    {
+      "type": "user",
+      "timestamp": "2025-12-20T10:07:54.366Z",
+      "content": "总结 https://www.youtube.com/watch?v=Hzl4WtUKg-U"
+    }
+  ]
+}"#,
+        )
+        .expect("write gemini fixture");
+
+        let meta = parse_session(&path).expect("parse session");
+
+        assert_eq!(
+            meta.title.as_deref(),
+            Some("Summarize video transcript and save to file.")
+        );
+    }
 }

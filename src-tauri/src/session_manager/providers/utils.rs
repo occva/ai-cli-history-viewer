@@ -1,9 +1,14 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
 use std::path::Path;
+use std::sync::LazyLock;
 
 use chrono::{DateTime, FixedOffset};
+use regex::Regex;
 use serde_json::Value;
+
+static FILE_LINK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(file://[^)]+\)").expect("valid file link regex"));
 
 /// Read the first `head_n` lines and last `tail_n` lines from a file.
 /// For small files (< 16 KB), reads all lines once to avoid unnecessary seeking.
@@ -107,6 +112,54 @@ pub fn truncate_summary(text: &str, max_chars: usize) -> String {
     result
 }
 
+pub fn normalize_title_candidate(text: &str, max_chars: usize) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let without_file_links = FILE_LINK_RE.replace_all(trimmed, "$1");
+    let decoded = decode_percent_escapes(without_file_links.as_ref());
+    let normalized = decoded.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+
+    Some(truncate_summary(&normalized, max_chars))
+}
+
+fn decode_percent_escapes(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = hex_value(bytes[i + 1]);
+            let lo = hex_value(bytes[i + 2]);
+            if let (Some(hi), Some(lo)) = (hi, lo) {
+                output.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+
+        output.push(bytes[i]);
+        i += 1;
+    }
+
+    String::from_utf8_lossy(&output).into_owned()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 pub fn path_basename(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -126,4 +179,19 @@ pub fn log_scan_error(provider: &str, path: &Path, err: &io::Error) {
         path.display(),
         err
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_title_candidate;
+
+    #[test]
+    fn normalize_title_candidate_decodes_file_links_and_percent_sequences() {
+        let title = normalize_title_candidate(
+            "[@%E7%A4%BE%E5%9B%A2%E9%A6%96%E9%A1%B5.htm](file:///D:/code/demo-script/web-tools/%E7%A4%BE%E5%9B%A2%E9%A6%96%E9%A1%B5.htm)",
+            160,
+        );
+
+        assert_eq!(title.as_deref(), Some("@社团首页.htm"));
+    }
 }

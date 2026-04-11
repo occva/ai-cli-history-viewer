@@ -102,10 +102,9 @@ fn list_source_stats(connection: &Connection) -> Result<Vec<SearchIndexSourceSta
               src.name,
               COUNT(DISTINCT sess.project_id) AS projects_count,
               COUNT(DISTINCT sess.id) AS sessions_count,
-              COUNT(msg.id) AS messages_count
+              COALESCE(SUM(sess.message_count), 0) AS messages_count
             FROM sources src
             LEFT JOIN sessions sess ON sess.source_id = src.id
-            LEFT JOIN messages msg ON msg.source_id = src.id
             GROUP BY src.id, src.name
             ORDER BY src.name
             "#,
@@ -125,4 +124,74 @@ fn list_source_stats(connection: &Connection) -> Result<Vec<SearchIndexSourceSta
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Failed to read source stats: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::list_source_stats;
+
+    #[test]
+    fn list_source_stats_does_not_multiply_messages_by_sessions() {
+        let connection = Connection::open_in_memory().expect("open in-memory db");
+        connection
+            .execute_batch(
+                r#"
+                CREATE TABLE sources (
+                  id INTEGER PRIMARY KEY,
+                  name TEXT NOT NULL UNIQUE,
+                  base_path TEXT NOT NULL
+                );
+                CREATE TABLE projects (
+                  id INTEGER PRIMARY KEY,
+                  source_id INTEGER NOT NULL,
+                  slug TEXT NOT NULL,
+                  display_path TEXT NOT NULL,
+                  display_name TEXT NOT NULL
+                );
+                CREATE TABLE sessions (
+                  id INTEGER PRIMARY KEY,
+                  project_id INTEGER NOT NULL,
+                  source_id INTEGER NOT NULL,
+                  provider_session_id TEXT NOT NULL,
+                  source_path TEXT NOT NULL,
+                  message_count INTEGER NOT NULL DEFAULT 0
+                );
+                "#,
+            )
+            .expect("create schema");
+
+        connection
+            .execute(
+                "INSERT INTO sources (id, name, base_path) VALUES (1, 'codex', 'C:/sessions')",
+                [],
+            )
+            .expect("insert source");
+        connection
+            .execute(
+                "INSERT INTO projects (id, source_id, slug, display_path, display_name) VALUES (1, 1, 'demo', 'D:/demo', 'demo')",
+                [],
+            )
+            .expect("insert project");
+        connection
+            .execute(
+                "INSERT INTO sessions (id, project_id, source_id, provider_session_id, source_path, message_count) VALUES (1, 1, 1, 'session-1', 'one.jsonl', 2)",
+                [],
+            )
+            .expect("insert session 1");
+        connection
+            .execute(
+                "INSERT INTO sessions (id, project_id, source_id, provider_session_id, source_path, message_count) VALUES (2, 1, 1, 'session-2', 'two.jsonl', 3)",
+                [],
+            )
+            .expect("insert session 2");
+
+        let stats = list_source_stats(&connection).expect("load stats");
+        assert_eq!(stats.len(), 1);
+        assert_eq!(stats[0].provider_id, "codex");
+        assert_eq!(stats[0].projects_count, 1);
+        assert_eq!(stats[0].sessions_count, 2);
+        assert_eq!(stats[0].messages_count, 5);
+    }
 }

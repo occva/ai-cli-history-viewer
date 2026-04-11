@@ -128,9 +128,10 @@ where
         let key = SessionKey::new(source_id, source_path);
         seen_keys.insert(key.clone());
         let file_state = read_source_metadata(source_path);
+        let project = resolve_project(session, source_path);
 
         match existing.get(&key) {
-            Some(record) if record.matches(&file_state) => {
+            Some(record) if record.matches(&file_state, session, &project) => {
                 skipped_sessions += 1;
             }
             Some(_) => match upsert_session_index(&transaction, &source_ids, session) {
@@ -579,8 +580,24 @@ fn load_existing_sessions(
     let mut stmt = transaction
         .prepare(
             r#"
-            SELECT source_id, source_path, id, raw_mtime, raw_size
-            FROM sessions
+            SELECT
+              s.source_id,
+              s.source_path,
+              s.id,
+              s.raw_mtime,
+              s.raw_size,
+              s.provider_session_id,
+              s.title,
+              s.summary,
+              s.cwd,
+              s.model,
+              s.created_at,
+              s.last_active_at,
+              s.resume_command,
+              p.display_path,
+              p.display_name
+            FROM sessions s
+            JOIN projects p ON p.id = s.project_id
             "#,
         )
         .map_err(|e| format!("Failed to prepare existing session query: {e}"))?;
@@ -592,6 +609,16 @@ fn load_existing_sessions(
                     session_row_id: row.get(2)?,
                     raw_mtime: row.get(3)?,
                     raw_size: row.get(4)?,
+                    provider_session_id: row.get(5)?,
+                    title: row.get(6)?,
+                    summary: row.get(7)?,
+                    cwd: row.get(8)?,
+                    model: row.get(9)?,
+                    created_at: row.get(10)?,
+                    last_active_at: row.get(11)?,
+                    resume_command: row.get(12)?,
+                    project_display_path: row.get(13)?,
+                    project_display_name: row.get(14)?,
                 },
             ))
         })
@@ -733,11 +760,37 @@ struct IndexedSessionRecord {
     session_row_id: i64,
     raw_mtime: Option<i64>,
     raw_size: Option<i64>,
+    provider_session_id: String,
+    title: Option<String>,
+    summary: Option<String>,
+    cwd: Option<String>,
+    model: Option<String>,
+    created_at: Option<i64>,
+    last_active_at: Option<i64>,
+    resume_command: Option<String>,
+    project_display_path: String,
+    project_display_name: String,
 }
 
 impl IndexedSessionRecord {
-    fn matches(&self, file_state: &FileState) -> bool {
-        self.raw_mtime == file_state.raw_mtime && self.raw_size == file_state.raw_size
+    fn matches(
+        &self,
+        file_state: &FileState,
+        session: &SessionMeta,
+        project: &ResolvedProject,
+    ) -> bool {
+        self.raw_mtime == file_state.raw_mtime
+            && self.raw_size == file_state.raw_size
+            && self.provider_session_id == session.session_id
+            && self.title == session.title
+            && self.summary == session.summary
+            && self.cwd == session.cwd
+            && self.model == session.model
+            && self.created_at == session.created_at
+            && self.last_active_at == session.last_active_at.or(session.created_at)
+            && self.resume_command == session.resume_command
+            && self.project_display_path == project.display_path
+            && self.project_display_name == project.display_name
     }
 }
 

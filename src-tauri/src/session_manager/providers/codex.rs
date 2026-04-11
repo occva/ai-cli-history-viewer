@@ -11,8 +11,8 @@ use crate::paths::get_codex_sessions_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
 
 use super::utils::{
-    extract_text, log_scan_error, parse_timestamp_to_ms, path_basename, read_head_tail_lines,
-    truncate_summary,
+    extract_text, log_scan_error, normalize_title_candidate, parse_timestamp_to_ms, path_basename,
+    read_head_tail_lines, truncate_summary,
 };
 
 const PROVIDER_ID: &str = "codex";
@@ -24,12 +24,13 @@ static UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
     let root = get_codex_sessions_dir();
+    let title_index = load_session_title_index(&root);
     let mut files = Vec::new();
     collect_jsonl_files(&root, &mut files);
 
     let mut sessions = Vec::new();
     for path in files {
-        if let Some(meta) = parse_session(&path) {
+        if let Some(meta) = parse_session(&path, &title_index) {
             sessions.push(meta);
         }
     }
@@ -161,7 +162,7 @@ fn format_function_call_content(payload: &Value) -> String {
 }
 
 pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
-    let meta = parse_session(path)
+    let meta = parse_session(path, &HashMap::new())
         .ok_or_else(|| format!("Failed to parse Codex session metadata: {}", path.display()))?;
 
     if meta.session_id != session_id {
@@ -181,7 +182,7 @@ pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<boo
     Ok(true)
 }
 
-fn parse_session(path: &Path) -> Option<SessionMeta> {
+fn parse_session(path: &Path, title_index: &HashMap<String, String>) -> Option<SessionMeta> {
     let (head, tail) = read_head_tail_lines(path, 10, 30).ok()?;
 
     let mut session_id: Option<String> = None;
@@ -256,10 +257,12 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
     let session_id = session_id.or_else(|| infer_session_id_from_filename(path));
     let session_id = session_id?;
 
-    let title = project_dir
-        .as_deref()
-        .and_then(path_basename)
-        .map(|value| value.to_string());
+    let title = title_index.get(&session_id).cloned().or_else(|| {
+        project_dir
+            .as_deref()
+            .and_then(path_basename)
+            .map(|value| value.to_string())
+    });
 
     let summary = summary.map(|text| truncate_summary(&text, 160));
 
@@ -276,6 +279,37 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
         source_path: Some(path.to_string_lossy().to_string()),
         resume_command: Some(format!("codex resume {session_id}")),
     })
+}
+
+fn load_session_title_index(root: &Path) -> HashMap<String, String> {
+    let Some(index_path) = root.parent().map(|path| path.join("session_index.jsonl")) else {
+        return HashMap::new();
+    };
+    let file = match File::open(index_path) {
+        Ok(file) => file,
+        Err(_) => return HashMap::new(),
+    };
+
+    let mut titles = HashMap::new();
+    for line in BufReader::new(file).lines().map_while(Result::ok) {
+        let value: Value = match serde_json::from_str(&line) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let Some(session_id) = value.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(title) = value
+            .get("thread_name")
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_title_candidate(value, 160))
+        else {
+            continue;
+        };
+        titles.insert(session_id.to_string(), title);
+    }
+
+    titles
 }
 
 fn infer_session_id_from_filename(path: &Path) -> Option<String> {
@@ -337,5 +371,54 @@ mod tests {
         assert_eq!(messages[2].role, "tool");
         assert_eq!(messages[2].name.as_deref(), Some("shell_command"));
         assert_eq!(messages[2].searchable_text(), "");
+    }
+
+    #[test]
+    fn parse_session_prefers_thread_name_from_session_index() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-11T02-51-56-019d78bc-8caa-7a40-a847-e6d1feb2f991.jsonl");
+        let content = [
+            r#"{"timestamp":"2026-04-10T18:55:06.911Z","type":"session_meta","payload":{"id":"019d78bc-8caa-7a40-a847-e6d1feb2f991","timestamp":"2026-04-10T18:51:56.025Z","cwd":"d:\\code"}}"#,
+            r#"{"timestamp":"2026-04-10T18:55:08.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"请改界面"}]}}"#,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+        fs::write(
+            dir.path().join("session_index.jsonl"),
+            "{\"id\":\"019d78bc-8caa-7a40-a847-e6d1feb2f991\",\"thread_name\":\"重设计 toolcalling 命令包裹样式\",\"updated_at\":\"2026-04-10T18:55:14.8801488Z\"}\n",
+        )
+        .expect("write codex index");
+
+        let title_index = load_session_title_index(&sessions_dir);
+        let meta = parse_session(&path, &title_index).expect("parse session");
+
+        assert_eq!(
+            meta.title.as_deref(),
+            Some("重设计 toolcalling 命令包裹样式")
+        );
+    }
+
+    #[test]
+    fn parse_session_falls_back_to_project_directory_when_index_missing() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-03T16-44-02-019d5283-7e20-7893-b29a-0939c460dbda.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-04-03T08:44:02.472Z","type":"session_meta","payload":{"id":"019d5283-7e20-7893-b29a-0939c460dbda","timestamp":"2026-04-03T08:44:02.472Z","cwd":"D:\\code"}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:16.969Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"opencode -version"}]}}"##,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let meta = parse_session(&path, &HashMap::new()).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("code"));
     }
 }

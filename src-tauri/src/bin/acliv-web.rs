@@ -197,7 +197,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (None, Some(token)) => (token, PasswordSource::LegacyToken),
         (None, None) => (generate_secret(18), PasswordSource::Generated),
     };
-    let auth_token = legacy_token.unwrap_or_else(|| derive_auth_token(&auth_username, &auth_password));
+    let auth_token =
+        legacy_token.unwrap_or_else(|| derive_auth_token(&auth_username, &auth_password));
 
     let socket: SocketAddr = format!("{host}:{port}")
         .parse()

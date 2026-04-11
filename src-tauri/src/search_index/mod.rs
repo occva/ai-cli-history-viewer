@@ -252,6 +252,32 @@ mod tests {
     }
 
     #[test]
+    fn refresh_updates_title_when_claude_sidecar_changes() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fixture = SearchFixture::new();
+
+        rebuild_index().expect("initial rebuild");
+        let sessions = list_indexed_sessions(10, Some("claude")).expect("indexed sessions");
+        assert_eq!(
+            sessions[0].title.as_deref(),
+            Some("Investigate XYLOPHONE_CANARY_42 in the search index. 请删除旧逻辑。")
+        );
+
+        fixture.write_claude_sessions_index(&[(
+            "session-claude-1",
+            "[@%E7%A4%BE%E5%9B%A2%E9%A6%96%E9%A1%B5.htm](file:///D:/code/demo-script/web-tools/%E7%A4%BE%E5%9B%A2%E9%A6%96%E9%A1%B5.htm)",
+        )]);
+
+        let refreshed = refresh_index().expect("refresh after claude sidecar change");
+        assert_eq!(refreshed.updated_sessions, 1);
+
+        let sessions = list_indexed_sessions(10, Some("claude")).expect("indexed sessions");
+        assert_eq!(sessions[0].title.as_deref(), Some("@社团首页.htm"));
+    }
+
+    #[test]
     fn delete_indexed_session_removes_index_rows() {
         let _guard = env_lock()
             .lock()
@@ -494,6 +520,24 @@ mod tests {
             fs::write(session_path, format!("{lines}\n")).expect("write fixture session");
         }
 
+        fn write_claude_sessions_index(&self, entries: &[(&str, &str)]) {
+            let index_path = PathBuf::from(&self.claude_project_path).join("sessions-index.json");
+            let entries = entries
+                .iter()
+                .map(|(session_id, first_prompt)| {
+                    json!({
+                        "sessionId": session_id,
+                        "firstPrompt": first_prompt,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let payload = json!({
+                "version": 1,
+                "entries": entries,
+            });
+            fs::write(index_path, payload.to_string()).expect("write claude sessions index");
+        }
+
         fn write_empty_codex_session(&self, session_id: &str) {
             let session_path =
                 PathBuf::from(&self.codex_sessions_path).join(format!("{session_id}.jsonl"));
@@ -512,7 +556,8 @@ mod tests {
                     "model": "gpt-5-codex"
                 }
             });
-            fs::write(session_path, format!("{line}\n")).expect("write metadata-only codex session");
+            fs::write(session_path, format!("{line}\n"))
+                .expect("write metadata-only codex session");
         }
 
         fn write_codex_session_with_tooling(&self, session_id: &str) {

@@ -222,16 +222,17 @@ fn set_user_version(connection: &Connection, version: i32) -> Result<(), String>
 }
 
 fn table_exists(connection: &Connection, table: &str) -> Result<bool, rusqlite::Error> {
-    connection.query_row(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
-        [table],
-        |_| Ok(()),
-    )
-    .map(|_| true)
-    .or_else(|err| match err {
-        rusqlite::Error::QueryReturnedNoRows => Ok(false),
-        other => Err(other),
-    })
+    connection
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            [table],
+            |_| Ok(()),
+        )
+        .map(|_| true)
+        .or_else(|err| match err {
+            rusqlite::Error::QueryReturnedNoRows => Ok(false),
+            other => Err(other),
+        })
 }
 
 fn recreate_search_fts(connection: &Connection) -> Result<(), String> {
