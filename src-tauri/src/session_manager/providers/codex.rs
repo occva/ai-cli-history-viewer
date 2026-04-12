@@ -25,12 +25,13 @@ static UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub fn scan_sessions() -> Vec<SessionMeta> {
     let root = get_codex_sessions_dir();
     let title_index = load_session_title_index(&root);
+    let history_title_index = load_history_title_index(&root);
     let mut files = Vec::new();
     collect_jsonl_files(&root, &mut files);
 
     let mut sessions = Vec::new();
     for path in files {
-        if let Some(meta) = parse_session(&path, &title_index) {
+        if let Some(meta) = parse_session(&path, &title_index, &history_title_index) {
             sessions.push(meta);
         }
     }
@@ -162,7 +163,7 @@ fn format_function_call_content(payload: &Value) -> String {
 }
 
 pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
-    let meta = parse_session(path, &HashMap::new())
+    let meta = parse_session(path, &HashMap::new(), &HashMap::new())
         .ok_or_else(|| format!("Failed to parse Codex session metadata: {}", path.display()))?;
 
     if meta.session_id != session_id {
@@ -182,13 +183,18 @@ pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<boo
     Ok(true)
 }
 
-fn parse_session(path: &Path, title_index: &HashMap<String, String>) -> Option<SessionMeta> {
-    let (head, tail) = read_head_tail_lines(path, 10, 30).ok()?;
+fn parse_session(
+    path: &Path,
+    title_index: &HashMap<String, String>,
+    history_title_index: &HashMap<String, String>,
+) -> Option<SessionMeta> {
+    let (head, tail) = read_head_tail_lines(path, 40, 30).ok()?;
 
     let mut session_id: Option<String> = None;
     let mut project_dir: Option<String> = None;
     let mut model: Option<String> = None;
     let mut created_at: Option<i64> = None;
+    let mut fallback_title: Option<String> = None;
 
     // Extract metadata from head lines
     for line in &head {
@@ -225,6 +231,9 @@ fn parse_session(path: &Path, title_index: &HashMap<String, String>) -> Option<S
                 }
             }
         }
+        if fallback_title.is_none() {
+            fallback_title = extract_first_user_title(&value);
+        }
     }
 
     // Extract last_active_at and summary from tail lines (reverse order)
@@ -257,12 +266,17 @@ fn parse_session(path: &Path, title_index: &HashMap<String, String>) -> Option<S
     let session_id = session_id.or_else(|| infer_session_id_from_filename(path));
     let session_id = session_id?;
 
-    let title = title_index.get(&session_id).cloned().or_else(|| {
-        project_dir
-            .as_deref()
-            .and_then(path_basename)
-            .map(|value| value.to_string())
-    });
+    let title = title_index
+        .get(&session_id)
+        .cloned()
+        .or_else(|| history_title_index.get(&session_id).cloned())
+        .or(fallback_title)
+        .or_else(|| {
+            project_dir
+                .as_deref()
+                .and_then(path_basename)
+                .map(|value| value.to_string())
+        });
 
     let summary = summary.map(|text| truncate_summary(&text, 160));
 
@@ -302,7 +316,7 @@ fn load_session_title_index(root: &Path) -> HashMap<String, String> {
         let Some(title) = value
             .get("thread_name")
             .and_then(Value::as_str)
-            .and_then(|value| normalize_title_candidate(value, 160))
+            .and_then(normalize_codex_title_value)
         else {
             continue;
         };
@@ -310,6 +324,145 @@ fn load_session_title_index(root: &Path) -> HashMap<String, String> {
     }
 
     titles
+}
+
+fn load_history_title_index(root: &Path) -> HashMap<String, String> {
+    let Some(history_path) = root.parent().map(|path| path.join("history.jsonl")) else {
+        return HashMap::new();
+    };
+    let file = match File::open(history_path) {
+        Ok(file) => file,
+        Err(_) => return HashMap::new(),
+    };
+
+    let mut titles = HashMap::new();
+    for line in BufReader::new(file).lines().map_while(Result::ok) {
+        let value: Value = match serde_json::from_str(&line) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let Some(session_id) = value.get("session_id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(title) = value
+            .get("text")
+            .and_then(Value::as_str)
+            .and_then(normalize_codex_title_value)
+        else {
+            continue;
+        };
+
+        titles.entry(session_id.to_string()).or_insert(title);
+    }
+
+    titles
+}
+
+fn extract_first_user_title(value: &Value) -> Option<String> {
+    if value.get("type").and_then(Value::as_str) != Some("response_item") {
+        return None;
+    }
+
+    let payload = value.get("payload")?;
+    if payload.get("type").and_then(Value::as_str) != Some("message") {
+        return None;
+    }
+    if payload.get("role").and_then(Value::as_str) != Some("user") {
+        return None;
+    }
+
+    payload.get("content").and_then(extract_first_content_title)
+}
+
+fn extract_first_content_title(content: &Value) -> Option<String> {
+    match content {
+        Value::String(text) => normalize_codex_title_value(text),
+        Value::Array(items) => items.iter().find_map(extract_first_content_title),
+        Value::Object(map) => map
+            .get("text")
+            .and_then(Value::as_str)
+            .and_then(normalize_codex_title_value)
+            .or_else(|| {
+                map.get("input_text")
+                    .and_then(Value::as_str)
+                    .and_then(normalize_codex_title_value)
+            })
+            .or_else(|| {
+                map.get("output_text")
+                    .and_then(Value::as_str)
+                    .and_then(normalize_codex_title_value)
+            })
+            .or_else(|| map.get("content").and_then(extract_first_content_title)),
+        _ => None,
+    }
+}
+
+fn normalize_codex_title_value(value: &str) -> Option<String> {
+    if let Some(request) = extract_marked_user_request(value) {
+        if let Some(title) = normalize_codex_title_candidate(request) {
+            return Some(title);
+        }
+    }
+
+    normalize_codex_title_candidate(value)
+}
+
+fn extract_marked_user_request(value: &str) -> Option<&str> {
+    let lowered = value.to_ascii_lowercase();
+    for marker in [
+        "## my request for codex:",
+        "# my request for codex:",
+        "my request for codex:",
+    ] {
+        if let Some(index) = lowered.find(marker) {
+            let request = value[index + marker.len()..].trim();
+            if !request.is_empty() {
+                return Some(request);
+            }
+        }
+    }
+
+    None
+}
+
+fn normalize_codex_title_candidate(value: &str) -> Option<String> {
+    let normalized = normalize_title_candidate(value, 160)?;
+    let lowered = normalized.to_ascii_lowercase();
+
+    if lowered.starts_with("## code review guidelines:")
+        || lowered.starts_with("# review guidelines:")
+        || lowered.starts_with("# agents.md instructions")
+        || lowered.starts_with("<environment_context>")
+        || lowered.starts_with("<user_shell_command>")
+        || lowered.starts_with("codex resume ")
+        || lowered == "q"
+        || lowered == "hi"
+        || lowered == "hey"
+        || lowered == "ping"
+        || lowered == "exit"
+    {
+        return None;
+    }
+
+    if looks_like_shell_transcript(&lowered) {
+        return None;
+    }
+
+    if normalized.chars().count() == 1 && normalized.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+
+    Some(normalized)
+}
+
+fn looks_like_shell_transcript(lowered: &str) -> bool {
+    lowered.contains("exit code:")
+        || lowered.contains("categoryinfo")
+        || lowered.contains("fullyqualifiederrorid")
+        || lowered.contains("service_name:")
+        || lowered.contains("win32_exit_code")
+        || lowered.contains("service_exit_code")
+        || lowered.contains("status name displayname")
 }
 
 fn infer_session_id_from_filename(path: &Path) -> Option<String> {
@@ -394,7 +547,7 @@ mod tests {
         .expect("write codex index");
 
         let title_index = load_session_title_index(&sessions_dir);
-        let meta = parse_session(&path, &title_index).expect("parse session");
+        let meta = parse_session(&path, &title_index, &HashMap::new()).expect("parse session");
 
         assert_eq!(
             meta.title.as_deref(),
@@ -403,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_session_falls_back_to_project_directory_when_index_missing() {
+    fn parse_session_falls_back_to_history_when_index_missing() {
         let dir = tempdir().expect("tempdir");
         let sessions_dir = dir.path().join("sessions");
         fs::create_dir_all(&sessions_dir).expect("create sessions dir");
@@ -416,8 +569,134 @@ mod tests {
         ]
         .join("\n");
         fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+        fs::write(
+            dir.path().join("history.jsonl"),
+            [
+                "{\"session_id\":\"019d5283-7e20-7893-b29a-0939c460dbda\",\"ts\":1775205842,\"text\":\"q\"}",
+                "{\"session_id\":\"019d5283-7e20-7893-b29a-0939c460dbda\",\"ts\":1775205856,\"text\":\"检查一下登录逻辑\"}",
+            ]
+            .join("\n"),
+        )
+        .expect("write codex history");
 
-        let meta = parse_session(&path, &HashMap::new()).expect("parse session");
+        let history_title_index = load_history_title_index(&sessions_dir);
+        let meta =
+            parse_session(&path, &HashMap::new(), &history_title_index).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("检查一下登录逻辑"));
+    }
+
+    #[test]
+    fn parse_session_falls_back_to_first_meaningful_user_message() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-03T16-44-02-019d5283-7e20-7893-b29a-0939c460dbda.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-04-03T08:44:02.472Z","type":"session_meta","payload":{"id":"019d5283-7e20-7893-b29a-0939c460dbda","timestamp":"2026-04-03T08:44:02.472Z","cwd":"D:\\code"}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:03.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for D:\\code"}]}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:04.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>\n  <cwd>D:\\code</cwd>\n</environment_context>"}]}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:05.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"请检查发布流程哪里有问题"}]}}"##,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let meta = parse_session(&path, &HashMap::new(), &HashMap::new()).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("请检查发布流程哪里有问题"));
+    }
+
+    #[test]
+    fn parse_session_extracts_request_from_review_wrapper() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-03-20T19-03-08-019d0ae9-cfef-79a2-ba8f-5f4e00fcb031.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-03-20T11:03:58.561Z","type":"session_meta","payload":{"id":"019d0ae9-cfef-79a2-ba8f-5f4e00fcb031","timestamp":"2026-03-20T11:03:08.530Z","cwd":"D:\\new\\atguigu\\Association"}}"##,
+            r###"{"timestamp":"2026-03-20T11:03:58.563Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"## Code review guidelines:\n# Review guidelines:\nYou are acting as a reviewer for a proposed code change made by another engineer.\nReview the current code changes (staged, unstaged, and untracked files) and provide prioritized findings.\n## My request for Codex:\n请审查我未提交的更改"}]}}"###,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let meta = parse_session(&path, &HashMap::new(), &HashMap::new()).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("请审查我未提交的更改"));
+    }
+
+    #[test]
+    fn parse_session_skips_injected_preamble_inside_same_user_message() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-10T18-51-56-019d78bc-8caa-7a40-a847-e6d1feb2f991.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-04-10T18:55:06.911Z","type":"session_meta","payload":{"id":"019d78bc-8caa-7a40-a847-e6d1feb2f991","timestamp":"2026-04-10T18:51:56.025Z","cwd":"d:\\code"}}"##,
+            r##"{"timestamp":"2026-04-10T18:55:08.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for d:\\code"},{"type":"input_text","text":"<environment_context>\n  <cwd>d:\\code</cwd>\n</environment_context>"},{"type":"input_text","text":"请改界面"}]}}"##,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let meta = parse_session(&path, &HashMap::new(), &HashMap::new()).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("请改界面"));
+    }
+
+    #[test]
+    fn parse_session_skips_shell_output_in_history_titles() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-03T16-44-02-019d5283-7e20-7893-b29a-0939c460dbdb.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-04-03T08:44:02.472Z","type":"session_meta","payload":{"id":"019d5283-7e20-7893-b29a-0939c460dbdb","timestamp":"2026-04-03T08:44:02.472Z","cwd":"D:\\code"}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:03.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"q"}]}}"##,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+        fs::write(
+            dir.path().join("history.jsonl"),
+            [
+                "{\"session_id\":\"019d5283-7e20-7893-b29a-0939c460dbdb\",\"ts\":1775205842,\"text\":\"Get-Service -Name MongoDB\\n\\nStatus   Name               DisplayName\\n------   ----               -----------\\nStopped  MongoDB            MongoDB Server (MongoDB)\"}",
+                "{\"session_id\":\"019d5283-7e20-7893-b29a-0939c460dbdb\",\"ts\":1775205856,\"text\":\"启动mongodb服务失败，帮我排查\"}",
+            ]
+            .join("\n"),
+        )
+        .expect("write codex history");
+
+        let history_title_index = load_history_title_index(&sessions_dir);
+        let meta =
+            parse_session(&path, &HashMap::new(), &history_title_index).expect("parse session");
+
+        assert_eq!(meta.title.as_deref(), Some("启动mongodb服务失败，帮我排查"));
+    }
+
+    #[test]
+    fn parse_session_falls_back_to_project_directory_when_no_meaningful_title_exists() {
+        let dir = tempdir().expect("tempdir");
+        let sessions_dir = dir.path().join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+        let path = sessions_dir
+            .join("rollout-2026-04-03T16-44-02-019d5283-7e20-7893-b29a-0939c460dbda.jsonl");
+        let content = [
+            r##"{"timestamp":"2026-04-03T08:44:02.472Z","type":"session_meta","payload":{"id":"019d5283-7e20-7893-b29a-0939c460dbda","timestamp":"2026-04-03T08:44:02.472Z","cwd":"D:\\code"}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:03.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for D:\\code"}]}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:04.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>\n  <cwd>D:\\code</cwd>\n</environment_context>"}]}}"##,
+            r##"{"timestamp":"2026-04-03T08:44:05.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"q"}]}}"##,
+        ]
+        .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("write codex fixture");
+
+        let meta = parse_session(&path, &HashMap::new(), &HashMap::new()).expect("parse session");
 
         assert_eq!(meta.title.as_deref(), Some("code"));
     }
