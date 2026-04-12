@@ -32,6 +32,7 @@ $desktopExe = Join-Path $releaseDir "acliv-$tag.exe"
 $setupExe = Join-Path $releaseDir "acliv-$tag-x64-setup.exe"
 $msiFile = Join-Path $releaseDir "acliv-$tag-x64-en-us.msi"
 $releaseNotes = Join-Path $releaseDir "release-notes-$tag.md"
+$releaseNotesValidator = Join-Path $RepoRoot 'scripts\assert-release-notes.ps1'
 
 Invoke-Step -Name 'verify gh auth' -Action {
   gh auth status
@@ -41,6 +42,10 @@ foreach ($path in @($desktopExe, $setupExe, $msiFile, $releaseNotes)) {
   if (-not (Test-Path $path)) {
     throw "Missing release artifact: $path"
   }
+}
+
+Invoke-Step -Name 'validate release notes' -Action {
+  powershell -NoProfile -ExecutionPolicy Bypass -File $releaseNotesValidator -Path $releaseNotes
 }
 
 Invoke-Step -Name 'ensure git tag exists' -Action {

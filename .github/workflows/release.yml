@@ -53,7 +53,11 @@ jobs:
 
       - name: Build release artifacts
         shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version ${{ steps.version.outputs.version }} -AllowDirty
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version ${{ steps.version.outputs.version }} -AllowDirty -ReleaseNotesMode git
+
+      - name: Validate release notes
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-notes.ps1 -Path release/v${{ steps.version.outputs.version }}/release-notes-v${{ steps.version.outputs.version }}.md
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

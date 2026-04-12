@@ -2,7 +2,9 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$Version,
-  [switch]$AllowDirty
+  [switch]$AllowDirty,
+  [ValidateSet('template', 'git')]
+  [string]$ReleaseNotesMode = 'template'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -152,6 +154,37 @@ function Get-ReleaseNotesChangesTemplate {
   )
 }
 
+function Get-GitReleaseNotesChanges {
+  $rawSubjects = git log --pretty=format:%s -n 12
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to generate release note candidates from git history.'
+  }
+
+  $subjects = @(
+    $rawSubjects -split "`r?`n" |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -and ($_ -notmatch '^Merge\b') }
+  )
+  if ($subjects.Count -eq 0) {
+    return @("- Automated release build for v$Version.")
+  }
+
+  return $subjects | ForEach-Object { "- $_" }
+}
+
+function Get-ReleaseNotesChanges {
+  param(
+    [ValidateSet('template', 'git')]
+    [string]$Mode
+  )
+
+  if ($Mode -eq 'git') {
+    return Get-GitReleaseNotesChanges
+  }
+
+  return Get-ReleaseNotesChangesTemplate
+}
+
 function Get-ReleaseNotesVerification {
   return @(
     '- Ran `cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web`',
@@ -236,8 +269,8 @@ Invoke-Step -Name 'collect release artifacts' -Action {
 }
 
 $releaseNotesPath = Join-Path $releaseDir "release-notes-v$Version.md"
-Invoke-Step -Name 'generate release notes template' -Action {
-  $changes = (Get-ReleaseNotesChangesTemplate) -join [Environment]::NewLine
+Invoke-Step -Name 'generate release notes' -Action {
+  $changes = (Get-ReleaseNotesChanges -Mode $ReleaseNotesMode) -join [Environment]::NewLine
   $verification = (Get-ReleaseNotesVerification) -join [Environment]::NewLine
   $releaseNotes = @"
 # v$Version
