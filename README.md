@@ -44,7 +44,7 @@
 
 - Node.js 18+
 - Rust stable
-- Tauri CLI (`cargo install tauri-cli`)
+- repo 内置 `@tauri-apps/cli`，直接用 `npm exec tauri ...`
 
 安装依赖：
 
@@ -55,13 +55,21 @@ npm install
 开发运行：
 
 ```bash
-cargo tauri dev
+npm exec tauri dev
 ```
 
 构建：
 
 ```bash
-cargo tauri build
+npm exec tauri build -- --no-bundle
+```
+
+本地重编并直接启动桌面版时，使用上面的 Tauri 构建链路；不要用 `cargo build` 代替桌面构建。
+
+发布打包：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version <x.y.z>
 ```
 
 ## Linux 部署

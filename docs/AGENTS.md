@@ -17,9 +17,10 @@ Run from repository root:
 
 - `npm install`: install JS dependencies.
 - `npm run dev`: run Vite frontend only.
-- `cargo tauri dev`: run the full desktop app in development.
+- `npm exec tauri dev`: run the full desktop app in development.
 - `npm run build`: build frontend assets.
-- `cargo tauri build`: build production desktop bundles.
+- `npm exec tauri build -- --no-bundle`: build the desktop executable for direct local launch. Use this instead of `cargo build` when verifying desktop behavior.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version <x.y.z>`: build release artifacts and installer bundles into `release/v<version>/`.
 - `npx svelte-check`: run Svelte/TypeScript diagnostics.
 - `cargo test --manifest-path src-tauri/Cargo.toml`: run Rust tests.
 

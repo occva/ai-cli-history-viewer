@@ -24,8 +24,10 @@
 
 ### 2.1 已有能力
 
-- 当前项目已有桌面端构建链路：`npm run tauri build`
+- 当前项目已有本地桌面可执行文件构建链路：`npm exec tauri build -- --no-bundle`
+- 当前项目已有桌面端安装包构建链路：`npm run tauri build`
 - 当前项目已有 Web 构建链路：`cargo build --release --manifest-path src-tauri/Cargo.toml --no-default-features --features web --bin acliv-web`
+- 当前项目可通过 `build-release.ps1 -ReleaseNotesMode git` 在 CI 中基于近期提交生成可发布的 release notes
 - 当前项目已有 Docker 发布 workflow：`.github/workflows/docker-release.yml`
 - 当前项目已有 GHCR 镜像发布路径，镜像名为 `ghcr.io/occva/acliv`
 
@@ -177,6 +179,8 @@
 约束：
 
 - 负责生成本地发布产物
+- 只在正式发布打包时运行 `npm run tauri build`
+- 如果只是本地重编并启动桌面 exe，直接执行 `npm exec tauri build -- --no-bundle`，不要改用 `cargo build`
 - 不负责 git commit
 - 不负责 tag
 - 不负责 GitHub Release 上传
@@ -230,6 +234,7 @@
 
 明确不做的事：
 
+- 不运行 `npm exec tauri build -- --no-bundle`
 - 不运行 `npm run tauri build`
 - 不创建 release
 - 不构建 docker image

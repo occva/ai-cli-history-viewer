@@ -39,6 +39,9 @@ Prefer executing the existing project scripts instead of reimplementing the work
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1 -Scope release`
 - Release build entrypoint:
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version <x.y.z>`
+  - CI auto notes mode: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version <x.y.z> -ReleaseNotesMode git`
+- Release notes validation entrypoint:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-notes.ps1 -Path release/v<version>/release-notes-v<version>.md`
 - Release publish entrypoint:
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-release.ps1 -Version <x.y.z>`
 - Built artifacts are copied to:
@@ -109,7 +112,15 @@ Before any real publish, review the notes file and make sure `## Changes` is a u
 - do not leave placeholder `TODO` text in a published release
 - keep verification facts concrete and accurate
 
-If the generated notes are still template text, rewrite them before publish.
+Run the repo validator before any publish attempt:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-notes.ps1 -Path release/v<version>/release-notes-v<version>.md
+```
+
+If the validator fails, rewrite the notes before publish.
+
+For CI tag releases, `build-release.ps1 -ReleaseNotesMode git` can synthesize a publishable `## Changes` section from recent commit subjects before the validator runs.
 
 ### 4. Publish only when asked
 
@@ -155,6 +166,16 @@ If `src-tauri/target/release/acliv.exe` is running, cleanup can fail. Prefer the
 
 This repo's Tauri bundle includes `acliv-web.exe`. The web binary must exist before `tauri build` runs, otherwise WiX `light.exe` can fail while packaging MSI.
 
+### Local desktop rebuilds are not cargo builds
+
+If the user only wants to rebuild and launch the desktop app locally, use:
+
+```powershell
+npm exec tauri build -- --no-bundle
+```
+
+Do not substitute a bare `cargo build` for desktop verification.
+
 ### NSIS dependency
 
 Desktop setup bundling needs `makensis`.
@@ -166,7 +187,9 @@ Desktop setup bundling needs `makensis`.
 
 - If the user asks to prepare a release or validate the release pipeline, run checks and build, but do not publish unless they explicitly ask.
 - If the user asks for a formal release, run checks, build if needed, then publish.
+- If the user only asks to rebuild or launch the desktop executable locally, prefer `npm exec tauri build -- --no-bundle` over the release packaging flow.
 - When preparing release notes, prefer concise feature summaries over commit-by-commit narration.
+- Never publish if the release notes validator still finds `TODO` placeholders.
 - If scripts fail, repair the scripts first and rerun from the failing stage.
 - Prefer fixing root-cause automation issues over giving manual workaround steps.
 - Never delete user changes or reset the repo to make release easier.
@@ -189,6 +212,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version <x.y.z> -AllowDirty
+```
+
+### Validate release notes
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-notes.ps1 -Path release/v<version>/release-notes-v<version>.md
 ```
 
 ### Publish
