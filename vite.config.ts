@@ -25,5 +25,7 @@ export default defineConfig({
         minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
         // produce sourcemaps for debug builds
         sourcemap: !!process.env.TAURI_DEBUG,
+        // Mermaid is lazy-loaded and remains a relatively large async chunk.
+        chunkSizeWarningLimit: 650,
     },
 })
