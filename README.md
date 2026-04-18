@@ -1,7 +1,11 @@
 # ACLIV (Rust + Tauri)
 
 基于 Tauri 2 + Rust + Svelte 5 的 AI CLI 会话历史查看器。
-
+```
+演示地址：http://122.152.227.241:17860/
+账号：admin
+密码：308a46225b4f0eb0fa52dc4e47bf5a41a271583555bbba2963e21965ff4c462a
+```
 功能
 
 - 支持多 Provider：`claude`、`codex`、`gemini`、`openclaw`、`opencode`
