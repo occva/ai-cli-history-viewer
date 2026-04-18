@@ -17,13 +17,17 @@ Do not use this skill for other repositories.
 
 ## Goal
 
-Drive the real release flow end to end for this project:
+Drive the real release flow for this project without drifting away from the repo's actual scripts and conventions.
 
-1. verify release readiness
-2. sync version files
-3. build release artifacts
-4. summarize release notes in user-facing language
-5. optionally publish the GitHub Release
+For a real release request, the default sequence is:
+
+1. determine the target version
+2. generate a bilingual user-facing changelog from git history since the last `v*` release tag
+3. ask the user to confirm that changelog
+4. run release checks
+5. build release artifacts
+6. write validated release notes
+7. optionally publish the GitHub Release
 
 Prefer executing the existing project scripts instead of reimplementing the workflow ad hoc.
 
@@ -34,7 +38,12 @@ Prefer executing the existing project scripts instead of reimplementing the work
   - `package-lock.json`
   - `src-tauri/Cargo.toml`
   - `src-tauri/tauri.conf.json`
-  - `src-tauri/Cargo.lock`
+- Release tag format:
+  - `v<version>`
+- Release title format:
+  - `v<version>`
+- Release notes file:
+  - `release/v<version>/release-notes-v<version>.md`
 - Release check entrypoint:
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1 -Scope release`
 - Release build entrypoint:
@@ -64,7 +73,46 @@ Inspect at least:
 
 If the user gives a target version, use it. Otherwise infer the intended version from the conversation and existing files. Be explicit about the version you are acting on.
 
-### 2. Run readiness checks first
+For real publish requests, if `git status --short` is not clean, stop and ask the user how they want to proceed. Do not silently publish from a dirty worktree.
+
+### 2. Generate the changelog before any real publish
+
+Look up the most recent formal release tag using only tags that match `v*`.
+
+Use git history from that tag to `HEAD` to draft a user-facing changelog:
+
+- summarize what users will notice
+- merge small bug fixes and UI tweaks into broader bullets
+- keep the total bullet count at 8 or fewer
+- avoid file names, internal refactors, and raw technical jargon
+- do not paste commit subjects directly as final release notes
+
+Use this exact structure when presenting the draft to the user:
+
+```markdown
+## Changes
+
+更新内容:
+
+- xxx
+- xxx
+
+Updates:
+
+- xxx
+- xxx
+```
+
+If the user is asking for a real release, get explicit confirmation on the changelog before publishing. If the user only wants a rehearsal or build verification, you can continue without publish, but the final publishable release notes still need this rewrite.
+
+Useful commands:
+
+```powershell
+git tag --sort=-creatordate
+git log <last_tag>..HEAD --pretty=format:%s
+```
+
+### 3. Run readiness checks
 
 Always run:
 
@@ -74,7 +122,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1 -Scope r
 
 If it fails, stop and fix the actual issue before attempting release build or publish.
 
-### 3. Build the release artifacts
+### 4. Build the release artifacts
 
 Use the project build script, not a manual sequence, unless the script itself is broken and needs repair:
 
@@ -108,9 +156,11 @@ Before any real publish, review the notes file and make sure `## Changes` is a u
 
 - summarize actual product or workflow changes
 - group related changes into a few clear bullets
+- use the confirmed bilingual changelog
 - do not paste raw commit subjects as the release notes body
 - do not leave placeholder `TODO` text in a published release
 - keep verification facts concrete and accurate
+- keep the `## Verification` section intact unless it is factually wrong
 
 Run the repo validator before any publish attempt:
 
@@ -122,7 +172,7 @@ If the validator fails, rewrite the notes before publish.
 
 For CI tag releases, `build-release.ps1 -ReleaseNotesMode git` can synthesize a publishable `## Changes` section from recent commit subjects before the validator runs.
 
-### 4. Publish only when asked
+### 5. Publish only when asked
 
 Publishing creates tags and pushes to GitHub. Treat it as a real side effect.
 
@@ -130,7 +180,8 @@ Before publish, verify:
 
 - `gh auth status`
 - release artifacts exist in `release/v<version>/`
-- `release-notes-v<version>.md` has been rewritten into a real summary and is not just commit history or TODO placeholders
+- `release-notes-v<version>.md` has been rewritten into a real bilingual summary and is not just commit history or TODO placeholders
+- the user explicitly approved the changelog and explicitly asked to publish
 - the user asked to actually publish, not just rehearse
 
 Then run:
@@ -139,14 +190,15 @@ Then run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish-release.ps1 -Version <x.y.z>
 ```
 
-### 5. Summarize outcomes
+### 6. Summarize outcomes
 
 Report:
 
 - version used
+- changelog range used, for example `v1.0.7..HEAD`
 - checks run
 - artifacts produced
-- whether release notes were reviewed and summarized
+- whether release notes were reviewed, rewritten, and validated
 - whether publish was executed or intentionally skipped
 - remaining blockers, if any
 
@@ -186,10 +238,12 @@ Desktop setup bundling needs `makensis`.
 ## Decision Rules
 
 - If the user asks to prepare a release or validate the release pipeline, run checks and build, but do not publish unless they explicitly ask.
-- If the user asks for a formal release, run checks, build if needed, then publish.
+- If the user asks for a formal release, draft the bilingual changelog first, get user confirmation, then run checks, build if needed, and publish.
 - If the user only asks to rebuild or launch the desktop executable locally, prefer `npm exec tauri build -- --no-bundle` over the release packaging flow.
-- When preparing release notes, prefer concise feature summaries over commit-by-commit narration.
+- When preparing release notes, prefer concise user-facing summaries over commit-by-commit narration.
+- For real publish requests, treat a dirty worktree as a stop-and-confirm condition rather than something to ignore.
 - Never publish if the release notes validator still finds `TODO` placeholders.
+- Never publish if the user has not yet confirmed the changelog.
 - If scripts fail, repair the scripts first and rerun from the failing stage.
 - Prefer fixing root-cause automation issues over giving manual workaround steps.
 - Never delete user changes or reset the repo to make release easier.
@@ -233,24 +287,37 @@ User: `Start validating and preparing 1.0.4, but do not publish yet`
 
 Behavior:
 
+- inspect repo status and version files
 - run release checks
 - build `1.0.4` artifacts
 - verify `release/v1.0.4/`
 - stop before publish
 
 Example 2:
+User: `根据最近提交整理 1.0.4 的更新日志，确认后再发 release`
+
+Behavior:
+
+- find the previous `v*` tag
+- draft a bilingual changelog under 8 bullets
+- wait for the user's confirmation
+- do not publish yet
+
+Example 3:
 User: `Publish 1.0.4 for real`
 
 Behavior:
 
 - verify current version is `1.0.4`
+- make sure the changelog has been confirmed by the user
 - run checks
 - build if artifacts are missing or stale
-- rewrite release notes into a concise user-facing summary if needed
+- rewrite `release-notes-v1.0.4.md` into a concise bilingual summary if needed
+- validate notes
 - confirm `gh auth status`
 - publish via `scripts/publish-release.ps1`
 
-Example 3:
+Example 4:
 User: `release.yml and the scripts are written, run a rehearsal`
 
 Behavior:
