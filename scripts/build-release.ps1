@@ -139,10 +139,18 @@ function Ensure-NsisOnPath {
     return
   }
 
-  $userNsisBin = Join-Path $env:LOCALAPPDATA 'NSIS'
-  $userMakensis = Join-Path $userNsisBin 'makensis.exe'
-  if (Test-Path $userMakensis) {
-    $env:PATH = "$userNsisBin;$env:PATH"
+  $candidateBins = @(
+    (Join-Path $env:LOCALAPPDATA 'NSIS'),
+    (Join-Path $env:LOCALAPPDATA 'tauri\NSIS'),
+    (Join-Path $env:LOCALAPPDATA 'tauri\NSIS\Bin')
+  )
+
+  foreach ($candidateBin in $candidateBins) {
+    $candidateMakensis = Join-Path $candidateBin 'makensis.exe'
+    if (Test-Path $candidateMakensis) {
+      $env:PATH = "$candidateBin;$env:PATH"
+      return
+    }
   }
 }
 
