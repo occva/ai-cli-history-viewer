@@ -143,6 +143,7 @@
   const DETAIL_SCROLL_BOTTOM_THRESHOLD = 40;
   const DETAIL_PROGRESS_ANCHOR_OFFSET = 10;
   const DETAIL_PROGRESS_ANCHOR_SPACING = 14;
+  const SOURCE_STORAGE_KEY = 'source';
   const PROJECT_LIST_PATH_MODE_STORAGE_KEY = 'acliv:project-list-path-mode';
   const SESSION_ID_VISIBILITY_STORAGE_KEY = 'acliv:show-session-ids';
   let locale = $state<Locale>(getInitialLocale());
@@ -224,6 +225,16 @@
       || item.projectName?.trim()
       || item.project?.trim()
       || t('common.conversation');
+  }
+  function getStoredSource(): string | null {
+    const source = localStorage.getItem(SOURCE_STORAGE_KEY)?.trim();
+    return source && sources.includes(source) ? source : null;
+  }
+  function pickDefaultSource(sessions: SessionMeta[]): string {
+    const storedSource = getStoredSource();
+    if (storedSource) return storedSource;
+
+    return sources.find(source => sessions.some(session => session.providerId === source)) ?? sources[0];
   }
   function sessionDir(s: SessionMeta): string {
     if (s.projectDir && s.projectDir.trim()) return s.projectDir;
@@ -310,8 +321,8 @@
   let conversations = $state<ConvSummary[]>([]);
   let currentConversation = $state<any>(null);
   let stats = $state<Stats>({ projects_count: 0, conversations_count: 0, messages_count: 0 });
-  let currentSource = $state(localStorage.getItem('source') || 'claude');
   const sources = ['claude', 'codex', 'gemini', 'openclaw', 'opencode'];
+  let currentSource = $state(getStoredSource() ?? sources[0]);
 
   // UI State
   let currentView = $state('list');
@@ -594,7 +605,7 @@
   function syncConversationContext(target: SessionMeta) {
     if (currentSource !== target.providerId) {
       currentSource = target.providerId;
-      localStorage.setItem('source', target.providerId);
+      localStorage.setItem(SOURCE_STORAGE_KEY, target.providerId);
     }
 
     currentProject = sessionDir(target);
@@ -1051,6 +1062,11 @@
 
   function applyLoadedSessions(sessions: SessionMeta[]) {
     allSessions = sessions;
+    const nextSource = pickDefaultSource(sessions);
+    if (currentSource !== nextSource) {
+      currentSource = nextSource;
+      localStorage.setItem(SOURCE_STORAGE_KEY, nextSource);
+    }
     refreshFromSessions();
     if (currentProject) {
       conversations = buildConversations(allSessions, currentSource, currentProject);
@@ -1906,7 +1922,7 @@
           return;
       }
       currentSource = source;
-      localStorage.setItem('source', source);
+      localStorage.setItem(SOURCE_STORAGE_KEY, source);
       isSourceDropdownOpen = false;
       isProjectMenuOpen = false;
       currentProject = null;
@@ -2095,7 +2111,7 @@
       const session = toSessionMeta(item);
       const targetProject = sessionDir(session);
       currentSource = item.providerId;
-      localStorage.setItem('source', item.providerId);
+      localStorage.setItem(SOURCE_STORAGE_KEY, item.providerId);
       refreshFromSessions();
       currentProject = targetProject;
       conversations = buildConversations(allSessions, item.providerId, targetProject);
