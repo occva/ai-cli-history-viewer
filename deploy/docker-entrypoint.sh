@@ -52,11 +52,18 @@ if [ -z "${ACLIV_WEB_USERNAME:-}" ]; then
   export ACLIV_WEB_USERNAME="admin"
 fi
 
-if [ -z "${ACLIV_WEB_PASSWORD:-}" ] && [ -n "${ACLIV_TOKEN:-}" ]; then
-  log_warn "ACLIV_WEB_PASSWORD is unset; falling back to legacy ACLIV_TOKEN login password."
-elif [ -z "${ACLIV_WEB_PASSWORD:-}" ]; then
-  log_warn "ACLIV_WEB_PASSWORD is unset; acliv-web will generate a temporary password at startup."
-fi
+case "$(printf '%s' "${ACLIV_WEB_AUTH_ENABLED:-1}" | tr '[:upper:]' '[:lower:]')" in
+  0|false|no|off)
+    log_warn "ACLIV_WEB_AUTH_ENABLED is disabled; web UI and API will be publicly accessible."
+    ;;
+  *)
+    if [ -z "${ACLIV_WEB_PASSWORD:-}" ] && [ -n "${ACLIV_TOKEN:-}" ]; then
+      log_warn "ACLIV_WEB_PASSWORD is unset; falling back to legacy ACLIV_TOKEN login password."
+    elif [ -z "${ACLIV_WEB_PASSWORD:-}" ]; then
+      log_warn "ACLIV_WEB_PASSWORD is unset; acliv-web will generate a temporary password at startup."
+    fi
+    ;;
+esac
 
 for provider in \
   "Claude:${ACLIV_CLAUDE_DIR:-}" \

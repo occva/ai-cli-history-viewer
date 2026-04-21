@@ -159,16 +159,28 @@ prepare_env() {
     set_env_value "ACLIV_WEB_USERNAME" "$web_username"
   fi
 
+  local web_auth_enabled
+  web_auth_enabled="$(get_env_value ACLIV_WEB_AUTH_ENABLED)"
+  if [[ -z "$web_auth_enabled" ]]; then
+    web_auth_enabled="1"
+    set_env_value "ACLIV_WEB_AUTH_ENABLED" "$web_auth_enabled"
+  fi
+
+  local auth_disabled=0
+  case "${web_auth_enabled,,}" in
+    0|false|no|off) auth_disabled=1 ;;
+  esac
+
   local web_password
   web_password="$(get_env_value ACLIV_WEB_PASSWORD)"
-  if [[ -z "$web_password" ]]; then
+  if [[ "$auth_disabled" -eq 0 && -z "$web_password" ]]; then
     web_password="$(generate_secret 16)"
     set_env_value "ACLIV_WEB_PASSWORD" "$web_password"
   fi
 
   local auth_token
   auth_token="$(get_env_value ACLIV_TOKEN)"
-  if [[ -z "$auth_token" ]]; then
+  if [[ "$auth_disabled" -eq 0 && -z "$auth_token" ]]; then
     auth_token="$(generate_secret 32)"
     set_env_value "ACLIV_TOKEN" "$auth_token"
   fi
@@ -268,10 +280,16 @@ start_service() {
   compose_up_image
 
   local web_username web_password port public_ip
+  local web_auth_enabled auth_disabled
   web_username="$(get_env_value ACLIV_WEB_USERNAME)"
   web_password="$(get_env_value ACLIV_WEB_PASSWORD)"
+  web_auth_enabled="$(get_env_value ACLIV_WEB_AUTH_ENABLED)"
   port="$(get_env_value ACLIV_PORT)"
   public_ip="$(resolve_public_ip)"
+  auth_disabled=0
+  case "${web_auth_enabled,,}" in
+    0|false|no|off) auth_disabled=1 ;;
+  esac
 
   echo ""
   echo "Installation complete."
@@ -282,8 +300,13 @@ start_service() {
     echo "未获取到公网 IP，请手动替换 <your-server-ip> 后访问："
     echo "http://<your-server-ip>:${port}/"
   fi
-  echo "Username: ${web_username}"
-  echo "Password: ${web_password}"
+  if [[ "$auth_disabled" -eq 1 ]]; then
+    echo "Authentication: disabled (ACLIV_WEB_AUTH_ENABLED=${web_auth_enabled})"
+    echo "Warning: this instance is publicly accessible. Put it behind trusted network controls if needed."
+  else
+    echo "Username: ${web_username}"
+    echo "Password: ${web_password}"
+  fi
   echo ""
 }
 
