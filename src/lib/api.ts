@@ -12,6 +12,11 @@ export interface WebAuthSession {
     username: string;
 }
 
+export interface WebAuthConfig {
+    authEnabled: boolean;
+    username: string;
+}
+
 // ==================== 类型定义 ====================
 
 /** 会话元信息（来自 Rust SessionMeta） */
@@ -163,6 +168,8 @@ type ApiClientError = Error & {
     code?: string;
 };
 
+let webAuthEnabled = true;
+
 const ERROR_KEY_BY_CODE: Record<string, TranslationKey> = {
     'auth.invalid_credentials': 'errors.auth.invalid_credentials',
     'auth.missing_credentials': 'errors.auth.missing_credentials',
@@ -275,6 +282,14 @@ export function clearWebToken() {
     localStorage.removeItem(WEB_TOKEN_STORAGE_KEY);
 }
 
+export function isWebAuthEnabled(): boolean {
+    return webAuthEnabled;
+}
+
+export function setWebAuthEnabled(enabled: boolean) {
+    webAuthEnabled = enabled;
+}
+
 function assertWebToken(): string {
     const token = getWebToken();
     if (!token) {
@@ -313,9 +328,11 @@ async function fetchPublicApi<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 async function fetchApi<T>(path: string, init: RequestInit): Promise<T> {
-    const token = assertWebToken();
     const headers = new Headers(init.headers);
-    headers.set('Authorization', `Bearer ${token}`);
+    if (isWebMode() && webAuthEnabled) {
+        const token = assertWebToken();
+        headers.set('Authorization', `Bearer ${token}`);
+    }
     if (init.body && !headers.has('Content-Type')) {
         headers.set('Content-Type', 'application/json');
     }
@@ -341,6 +358,16 @@ export async function loginWeb(username: string, password: string): Promise<WebL
         method: 'POST',
         body: JSON.stringify({ username, password }),
     });
+}
+
+export async function getWebAuthConfig(): Promise<WebAuthConfig> {
+    if (!isWebMode()) {
+        throwLocalizedError('feature.desktop_only', 'Not supported outside web mode');
+    }
+
+    const config = await fetchPublicApi<WebAuthConfig>('/api/auth/config', { method: 'GET' });
+    setWebAuthEnabled(config.authEnabled);
+    return config;
 }
 
 export async function verifyWebAuth(): Promise<WebAuthSession> {

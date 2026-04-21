@@ -393,6 +393,17 @@
     if (!isWebMode) return true;
 
     try {
+      const config = await api.getWebAuthConfig();
+      loginUsername = config.username || loginUsername;
+      if (!config.authEnabled) {
+        api.clearWebToken();
+        authInitialized = true;
+        isAuthenticated = true;
+        loginPassword = '';
+        loginError = null;
+        return true;
+      }
+
       const session = await api.verifyWebAuth();
       authInitialized = true;
       isAuthenticated = true;
@@ -403,9 +414,8 @@
       api.clearWebToken();
       authInitialized = true;
       isAuthenticated = false;
-      if (api.getErrorCode(e) !== 'auth.missing_token') {
-        loginError = null;
-      }
+      loginPassword = '';
+      loginError = api.getErrorCode(e) === 'auth.missing_token' ? null : uiMessageFromError(e);
       return false;
     }
   }
@@ -1214,7 +1224,7 @@
   }
 
   function handleWebUnauthorized(error: unknown): boolean {
-      if (!isWebMode) return false;
+      if (!isWebMode || !api.isWebAuthEnabled()) return false;
 
       const message = error instanceof Error ? error.message : String(error);
       const code = api.getErrorCode(error);
